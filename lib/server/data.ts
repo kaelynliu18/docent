@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, max, or, sql } from "drizzle-orm";
 import { generateKeyBetween } from "fractional-indexing";
 import { z } from "zod";
 import type { DB } from "@/lib/db/client";
@@ -16,6 +16,11 @@ import { ARTWORK_ID_RE, TIERS, type ArtworkFeatures, type GenreRef, type Movemen
 import { commonsImage } from "@/lib/images";
 import { ApiError } from "./errors";
 import { hasPhotoOf, pendingArtworkIds, userPhotoMap } from "./visits";
+import { loadIndexes } from "./embeddings";
+import { RECS, mapVersion } from "@/lib/algo/config";
+import { unexploredClusters } from "@/lib/algo/tasteMap";
+import { recommend, reasonText } from "@/lib/algo/recommend";
+import { tasteVector, topK } from "@/lib/algo/vectors";
 
 /* ───────── Shared shapes ───────── */
 
@@ -759,3 +764,140 @@ export async function mergeGuestInto(db: DB, guestId: string, accountId: string)
   });
 }
 
+
+/* ───────── Visual recommendations ───────── */
+
+export type RecommendationOut = { card: ArtworkCard; score: number; reason: string };
+const recCache = new Map<string, { stamp: string; at: number; recs: RecommendationOut[] }>();
+const REC_CACHE_MS = 30 * 60_000;
+
+/**
+ * Paintings to see next, from the visual embedding space (lib/algo/recommend.ts):
+ * content-only for new users, blended with the trait + collaborative prediction
+ * once they've ranked more than RECS.coldMax. Cached per user; the cache key
+ * includes their ranking count and latest change, so adding or moving a
+ * ranking invalidates it.
+ */
+export async function getRecommendations(
+  db: DB,
+  userId: string | null,
+  limit = RECS.limit,
+  opts: { onlyIds?: Set<string> } = {},
+): Promise<RecommendationOut[]> {
+  const { all, taste } = await rankedForTaste(db, userId);
+  const { hideNudity } = await getPrefs(db, userId);
+  const [last] = userId
+    ? await db.select({ t: max(s.rankings.updatedAt) }).from(s.rankings).where(eq(s.rankings.userId, userId))
+    : [{ t: null }];
+  const stamp = `${all.length}:${last?.t?.toISOString() ?? ""}:${hideNudity}:${limit}:${opts.onlyIds ? [...opts.onlyIds].length : ""}`;
+  const key = `${userId ?? "anon"}:${opts.onlyIds ? "region" : "all"}`;
+  const hit = recCache.get(key);
+  if (hit && hit.stamp === stamp && Date.now() - hit.at < REC_CACHE_MS && !opts.onlyIds) return hit.recs;
+
+  const index = (await loadIndexes(db)).hybrid;
+  const rankedIds = new Set(all.map((r) => r.id));
+  const pool = await db
+    .select({ id: s.artworks.id, fame: s.artworks.fame })
+    .from(s.artworks)
+    .where(and(eq(s.artworks.inPool, true), isNull(s.artworks.ownerId), hideNudity ? eq(s.artworks.nudity, false) : undefined));
+  const fame = new Map(pool.map((p) => [p.id, p.fame]));
+  let candidates = pool.map((p) => p.id).filter((id) => !rankedIds.has(id) && (!opts.onlyIds || opts.onlyIds.has(id)));
+  const ranked = all.map((r) => ({ id: r.id, score: r.score, rank: r.rank, title: r.title }));
+
+  // Warm users: score the visually closest few hundred with the trait model (+ CF when it applies).
+  let warm: Map<string, number> | undefined;
+  if (ranked.length > RECS.coldMax) {
+    const t = tasteVector(index, ranked);
+    const allowed = new Set(candidates);
+    if (t) candidates = topK(index, t, RECS.candidates * 2, { keep: (id) => allowed.has(id) }).map((x) => x.id);
+    const cards = await loadCards(db, candidates, userId);
+    warm = new Map([...cards].map(([id, c]) => [id, predictScore(featuresOf(c), taste).score]));
+    if (userId) {
+      const cf = await collaborativeFor(db, userId, all, taste, candidates.slice(0, 60));
+      for (const [id, c] of cf) warm.set(id, c.score);
+    }
+  }
+
+  const recs = recommend({ ranked, candidates, index, warm: warm && ((id) => warm!.get(id) ?? null), popularity: (id) => fame.get(id) ?? 0, opts: { limit } });
+  const cards = await loadCards(db, recs.map((r) => r.id), userId);
+  const out = recs.flatMap((r) => {
+    const card = cards.get(r.id);
+    return card ? [{ card, score: r.score, reason: reasonText(r.reason) }] : [];
+  });
+  if (!opts.onlyIds) recCache.set(key, { stamp, at: Date.now(), recs: out });
+  return out;
+}
+
+/** Paintings that look most like this one (artwork page "More like this"). */
+export async function getSimilarArtworks(db: DB, userId: string | null, id: string, k = 8) {
+  const { nearestArtworks } = await import("./embeddings");
+  const { hideNudity } = await getPrefs(db, userId);
+  const near = await nearestArtworks(db, id, k * 3);
+  const cards = await loadCards(db, near.map((n) => n.id), userId);
+  return near
+    .flatMap((n) => {
+      const c = cards.get(n.id);
+      return c && !c.custom && !(hideNudity && c.nudity) ? [{ card: c, similarity: n.score }] : [];
+    })
+    .slice(0, k);
+}
+
+/* ───────── Taste map ───────── */
+
+/**
+ * Everything the taste map page needs, in one compact payload: every catalogue
+ * painting's precomputed 2D position (pnpm taste-map), the user's ranked
+ * paintings with rank and score, cluster labels, and unexplored regions.
+ * Hand-added paintings are never on the shared map.
+ */
+export async function getTasteMap(db: DB, userId: string | null) {
+  const version = mapVersion();
+  const { hideNudity } = await getPrefs(db, userId);
+  const rows = await db
+    .select({
+      id: s.artworkMap.artworkId,
+      x: s.artworkMap.x,
+      y: s.artworkMap.y,
+      cluster: s.artworkMap.cluster,
+      title: s.artworks.title,
+      artist: s.artists.name,
+      nudity: s.artworks.nudity,
+    })
+    .from(s.artworkMap)
+    .innerJoin(s.artworks, eq(s.artworks.id, s.artworkMap.artworkId))
+    .innerJoin(s.artists, eq(s.artists.id, s.artworks.artistId))
+    .where(and(eq(s.artworkMap.version, version), isNull(s.artworks.ownerId)));
+  const clusters = await db.select().from(s.mapClusters).where(eq(s.mapClusters.version, version));
+  const { all } = await rankedForTaste(db, userId);
+  const where = new Map(rows.map((r) => [r.id, r]));
+  const ranked = all
+    .filter((r) => where.has(r.id))
+    .map((r) => ({ id: r.id, rank: r.rank, score: roundScore(r.score), tier: r.tier, thumbUrl: r.thumbUrl }));
+  const round = (v: number) => Math.round(v * 10000) / 10000;
+  const shown = rows.filter((r) => !(hideNudity && r.nudity));
+  return {
+    ready: rows.length > 0,
+    // Column arrays keep ~9k points small on the wire.
+    points: {
+      id: shown.map((r) => r.id),
+      x: shown.map((r) => round(r.x)),
+      y: shown.map((r) => round(r.y)),
+      cluster: shown.map((r) => r.cluster),
+      title: shown.map((r) => r.title),
+      artist: shown.map((r) => r.artist),
+    },
+    ranked,
+    clusters: clusters.map((c) => ({ cluster: c.cluster, label: c.label, x: c.x, y: c.y, size: c.size })),
+    unexplored: unexploredClusters(clusters, ranked.map((r) => where.get(r.id)!.cluster), rows.length).slice(0, 3),
+  };
+}
+
+/** Recommendations limited to one map region (the "unexplored" links). */
+export async function getRegionRecommendations(db: DB, userId: string | null, cluster: number, limit = 12) {
+  const ids = await db
+    .select({ id: s.artworkMap.artworkId })
+    .from(s.artworkMap)
+    .where(and(eq(s.artworkMap.version, mapVersion()), eq(s.artworkMap.cluster, cluster)));
+  const [c] = await db.select().from(s.mapClusters).where(and(eq(s.mapClusters.version, mapVersion()), eq(s.mapClusters.cluster, cluster)));
+  return { label: c?.label ?? null, recs: await getRecommendations(db, userId, limit, { onlyIds: new Set(ids.map((r) => r.id)) }) };
+}
