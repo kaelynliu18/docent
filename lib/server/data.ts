@@ -4,6 +4,9 @@ import { z } from "zod";
 import type { DB } from "@/lib/db/client";
 import * as s from "@/lib/db/schema";
 import { roundScore, scoreAt } from "@/lib/algo/scoring";
+import { blendWithCf, buildCfIndex, cfPredict, fitCfWeight, looCfPoints, type Ratings } from "@/lib/algo/cf";
+import { explainPrediction, explanationText, type RankedRef } from "@/lib/algo/explain";
+import { blendedTierScores } from "@/lib/algo/bradleyTerry";
 import { buildTaste, periodOf, topAbsolute, topNegative, topPositive } from "@/lib/algo/taste";
 import { predictScore } from "@/lib/algo/predict";
 import { masterpieceTerm, matchMuseums, type MatchTerm, type MuseumInput } from "@/lib/algo/match";
@@ -164,18 +167,37 @@ export async function getRankedList(db: DB, userId: string | null): Promise<Reco
     .from(s.rankings)
     .where(eq(s.rankings.userId, userId));
   const cards = await loadCards(db, rows.map((r) => r.artworkId), userId);
+  const comps = await userComparisons(db, userId);
   let rank = 0;
   for (const tier of TIERS) {
     const inTier = rows.filter((r) => r.tier === tier).sort(byPosition);
+    const scores = tierScores(tier, inTier.map((r) => r.artworkId), comps);
     out[tier] = inTier.map((r, i) => ({
       ...cards.get(r.artworkId)!,
       tier,
       tierIndex: i,
       rank: ++rank,
-      score: roundScore(scoreAt(tier, i, inTier.length)),
+      score: roundScore(scores[i]),
     }));
   }
   return out;
+}
+
+async function userComparisons(db: DB, userId: string) {
+  return db
+    .select({ winnerId: s.comparisons.winnerId, loserId: s.comparisons.loserId, wasTie: s.comparisons.wasTie })
+    .from(s.comparisons)
+    .where(eq(s.comparisons.userId, userId));
+}
+
+/**
+ * Scores for one tier (best first): spacing blends even positions with
+ * Bradley–Terry strengths from the comparisons made inside this tier, so
+ * decisive choices spread paintings apart and "too close to call" pulls them together.
+ */
+function tierScores(tier: Tier, order: string[], comps: { winnerId: string; loserId: string; wasTie: boolean }[]) {
+  const members = new Set(order);
+  return blendedTierScores(tier, order, comps.filter((c) => members.has(c.winnerId) && members.has(c.loserId)));
 }
 
 export const insertRankingBody = z.object({
@@ -240,14 +262,20 @@ export async function insertRanking(db: DB, userId: string, raw: unknown) {
     const n = ids.length + 1;
     return { index, n };
   });
+  const order = (await tierRows(db, userId, body.tier)).map((r) => r.artworkId);
+  const scores = tierScores(body.tier, order, await userComparisons(db, userId));
   return {
     ranking: { artworkId: body.artworkId, tier: body.tier, tierIndex: result.index, tierSize: result.n },
-    score: roundScore(scoreAt(body.tier, result.index, result.n)),
+    score: roundScore(scores[order.indexOf(body.artworkId)] ?? scores[result.index]),
   };
 }
 
 export async function deleteRanking(db: DB, userId: string, artworkId: string) {
   await db.delete(s.rankings).where(and(eq(s.rankings.userId, userId), eq(s.rankings.artworkId, artworkId)));
+  // A re-rank starts fresh: old answers about this painting would otherwise skew its new tier's spacing.
+  await db
+    .delete(s.comparisons)
+    .where(and(eq(s.comparisons.userId, userId), or(eq(s.comparisons.winnerId, artworkId), eq(s.comparisons.loserId, artworkId))));
 }
 
 export async function addSkip(db: DB, userId: string, artworkId: string) {
@@ -259,24 +287,24 @@ export async function addSkip(db: DB, userId: string, artworkId: string) {
 
 /* ───────── Taste ───────── */
 
+const tasteRow = (r: RankedItem) => ({
+  artworkId: r.id,
+  artistId: r.artistId,
+  artistName: r.artistName,
+  score: r.score,
+  movements: r.movements,
+  genres: r.genres,
+  year: r.year,
+  tags: r.nudity ? ["nudity"] : [],
+});
+
 async function rankedForTaste(db: DB, userId: string | null) {
   const list = await getRankedList(db, userId);
   const all = [...list.loved, ...list.fine, ...list.meh];
   return {
     list,
     all,
-    taste: buildTaste(
-      all.map((r) => ({
-        artworkId: r.id,
-        artistId: r.artistId,
-        artistName: r.artistName,
-        score: r.score,
-        movements: r.movements,
-        genres: r.genres,
-        year: r.year,
-        tags: r.nudity ? ["nudity"] : [],
-      })),
-    ),
+    taste: buildTaste(all.map(tasteRow)),
   };
 }
 
@@ -494,6 +522,15 @@ export async function getMuseumDetail(db: DB, userId: string | null, id: string)
   const rankedScores = new Map(all.filter((r) => r.museum?.id === id).map((r) => [r.id, r.score]));
   const { hideNudity } = await getPrefs(db, userId);
   const works = (await predictedWorksAt(db, [id], taste, new Set(), false, hideNudity)).get(id) ?? [];
+  // Let people with similar taste refine the top of the list once there's enough of them.
+  if (userId && works.length) {
+    const cf = await collaborativeFor(db, userId, all, taste, works.slice(0, 60).map((w) => w.id));
+    for (const w of works) {
+      const c = cf.get(w.id);
+      if (c) w.predicted = roundScore(c.score);
+    }
+    works.sort((a, b) => b.predicted - a.predicted);
+  }
   const holdings = await db
     .select({ artistId: s.museumArtistHoldings.artistId, name: s.artists.name, count: s.museumArtistHoldings.paintingCount })
     .from(s.museumArtistHoldings)
@@ -538,14 +575,105 @@ export async function getArtworkPage(db: DB, userId: string | null, id: string) 
   if (!card) return null;
   const { all, taste } = await rankedForTaste(db, userId);
   const mine = all.find((r) => r.id === id) ?? null;
-  const prediction = mine ? null : predictScore(featuresOf(card), taste);
+  let prediction: { score: number; confidence: "low" | "normal"; why: string | null; fromOthers: boolean } | null = null;
+  if (!mine) {
+    const content = predictScore(featuresOf(card), taste);
+    const cf = userId ? (await collaborativeFor(db, userId, all, taste, [id])).get(id) : undefined;
+    const reasons = explainPrediction(featuresOf(card), taste, all.map(toRef));
+    const useCf = !!cf && cf.cfWeight >= 0.25 && cf.score >= 6;
+    prediction = {
+      score: roundScore(cf?.score ?? content.score),
+      confidence: cf && cf.cfWeight > 0 ? "normal" : content.confidence,
+      why: explanationText(reasons, useCf ? { titles: cf!.neighbourTitles } : null),
+      fromOthers: useCf,
+    };
+  }
   return {
     card,
     photographed: userId ? await hasPhotoOf(db, userId, id) : false,
     hideNudity: (await getPrefs(db, userId)).hideNudity,
     mine: mine ? { score: mine.score, tier: mine.tier, rank: mine.rank } : null,
-    prediction: prediction ? { score: roundScore(prediction.score), confidence: prediction.confidence } : null,
+    prediction,
   };
+}
+
+const toRef = (r: RankedItem): RankedRef => ({ ...featuresOf(r), id: r.id, title: r.title, score: r.score });
+
+/* ───────── Collaborative filtering ───────── */
+
+/** Below this many people sharing paintings with you, CF stays off (it only adds noise). */
+const CF_MIN_PEERS = 20;
+const CF_MAX_PEERS = 500;
+
+/**
+ * Blend content predictions with item–item CF for `targets`. Loads rankings of
+ * the people who share the most paintings with this user (capped), computes
+ * their scores from tier + position in SQL, and checks on the user's own
+ * rankings (leave-one-out) whether CF helps them before trusting it.
+ * Returns an empty map when there isn't enough data. Cheap at small scale:
+ * one overlap query and one windowed query.
+ */
+export async function collaborativeFor(
+  db: DB,
+  userId: string,
+  mine: RankedItem[],
+  taste: ReturnType<typeof buildTaste>,
+  targets: string[],
+): Promise<Map<string, { score: number; cfWeight: number; neighbourTitles: string[] }>> {
+  const out = new Map<string, { score: number; cfWeight: number; neighbourTitles: string[] }>();
+  if (mine.length < 8 || !targets.length) return out;
+  const myIds = mine.map((r) => r.id);
+  const peers = await db
+    .select({ userId: s.rankings.userId, overlap: sql<number>`count(*)::int` })
+    .from(s.rankings)
+    .where(and(inArray(s.rankings.artworkId, myIds), sql`${s.rankings.userId} <> ${userId}`))
+    .groupBy(s.rankings.userId)
+    .orderBy(desc(sql`count(*)`))
+    .limit(CF_MAX_PEERS);
+  if (peers.length < CF_MIN_PEERS) return out;
+
+  // Position within each peer's tier, compared bytewise (C collation) like byPosition.
+  const rows = await db
+    .select({
+      userId: s.rankings.userId,
+      artworkId: s.rankings.artworkId,
+      tier: s.rankings.tier,
+      i: sql<number>`(row_number() over (partition by ${s.rankings.userId}, ${s.rankings.tier} order by ${s.rankings.position} collate "C") - 1)::int`,
+      n: sql<number>`(count(*) over (partition by ${s.rankings.userId}, ${s.rankings.tier}))::int`,
+    })
+    .from(s.rankings)
+    .where(inArray(s.rankings.userId, peers.map((p) => p.userId)));
+  const relevant = new Set([...myIds, ...targets]);
+  const ratings: Ratings = new Map();
+  for (const r of rows) {
+    if (!relevant.has(r.artworkId)) continue;
+    let m = ratings.get(r.userId);
+    if (!m) ratings.set(r.userId, (m = new Map()));
+    m.set(r.artworkId, (scoreAt(r.tier, Number(r.i), Number(r.n)) - 5) / 5);
+  }
+  const idx = buildCfIndex(ratings);
+  const myRatings = new Map(mine.map((r) => [r.id, (r.score - 5) / 5]));
+  const weight = fitCfWeight(
+    looCfPoints(idx, myRatings, (held) => {
+      const r = mine.find((x) => x.id === held)!;
+      return predictScore(featuresOf(r), buildTaste(mine.filter((x) => x.id !== held).map(tasteRow))).score;
+    }),
+  );
+  if (weight <= 0) return out;
+  const titles = new Map(mine.map((r) => [r.id, r.title]));
+  const cards = await loadCards(db, targets.filter((t) => !myRatings.has(t)), userId);
+  for (const [t, card] of cards) {
+    const cf = cfPredict(idx, myRatings, t);
+    if (!cf) continue;
+    const content = predictScore(featuresOf(card), taste).score;
+    const alpha = Math.min(weight, blendWithCf(content, cf).cfWeight);
+    out.set(t, {
+      score: content + alpha * (5 + 5 * cf.signed - content),
+      cfWeight: alpha,
+      neighbourTitles: cf.neighbours.map((n) => titles.get(n.id)!).filter(Boolean),
+    });
+  }
+  return out;
 }
 
 /** Landing page hero rotation: most famous pool paintings. */

@@ -45,7 +45,9 @@ export default async function ArtworkPage({ params }: { params: Promise<{ id: st
               <div className="text-sm">
                 <p className="font-medium">Predicted for you</p>
                 <p className="text-ink-2">
-                  {prediction.confidence === "low" ? "Low confidence: you haven't ranked this artist or movement yet." : "Based on the artists and movements you've ranked."}
+                  {prediction.confidence === "low"
+                    ? "Low confidence: you haven't ranked this artist or movement yet."
+                    : (prediction.why ?? "Based on the artists and movements you've ranked.")}
                 </p>
               </div>
             </div>
