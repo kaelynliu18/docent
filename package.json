@@ -17,6 +17,8 @@
     "seed:build": "tsx --tsconfig tsconfig.json scripts/build-seed.ts",
     "ingest": "tsx --tsconfig tsconfig.json scripts/ingest.ts",
     "eval:algo": "tsx --tsconfig tsconfig.json scripts/eval-algo.ts",
+    "eval:sessions": "tsx --tsconfig tsconfig.json scripts/eval-sessions.ts",
+    "eval:cf": "tsx --tsconfig tsconfig.json scripts/eval-cf.ts",
     "vapid": "tsx --tsconfig tsconfig.json scripts/vapid.ts"
   },
   "dependencies": {
