@@ -79,8 +79,8 @@ Run `/api/cron/daily` once a day with `curl -H "Authorization: Bearer $CRON_SECR
 
 **Accounts and privacy:** guests can use everything; signing in (email code or Google) keeps their data and works across
 devices. Photos are private, served only to their owner, and stripped of GPS/EXIF before upload.
-*Account → Delete account* removes everything, which app stores require. The shared demo account can rank but
-not upload, and resets nightly.
+*Account → Delete account* removes everything, which app stores require. The demo account (for the owner's own
+demos) works like any account, uploads included; `pnpm db:seed` resets it.
 
 ## Layout
 

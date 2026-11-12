@@ -36,8 +36,8 @@ export function AccountClient({
 
       {account?.isDemo ? (
         <p className="mt-3 text-ink-2">
-          You&apos;re in the shared demo account. You can rank its paintings, but adding visits and photos needs your own
-          account. The demo resets every night.
+          You&apos;re in the demo account. It works like any other: add visits and photos, rank, change settings.
+          Nothing resets on its own; <code className="text-sm">pnpm db:seed</code> puts it back to the starting state.
         </p>
       ) : signedIn ? (
         <p className="mt-3 text-ink-2">
@@ -53,9 +53,9 @@ export function AccountClient({
 
       {!signedIn && !account?.isDemo && <SignIn can={can} onDone={() => switched()} />}
 
-      {!account?.isDemo && <ContentPrefs initial={prefs.hideNudity} onChange={() => switched()} />}
+      {account && <ContentPrefs initial={prefs.hideNudity} onChange={() => switched()} />}
 
-      {account && !account.isDemo && can.push && vapidKey && <Notifications vapidKey={vapidKey} />}
+      {account && can.push && vapidKey && <Notifications vapidKey={vapidKey} />}
 
       <div className="mt-12 flex flex-col gap-2 border-t border-line pt-6">
         {!signedIn && !account?.isDemo && (

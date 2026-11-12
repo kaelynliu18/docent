@@ -109,9 +109,12 @@ describe("account safety", () => {
     expect((await deleteAccount(db, DEMO_USER_ID).catch((e) => e)).code).toBe("demo");
   });
 
-  it("the shared demo account can't add visits or photos", async () => {
-    const err = await createVisit(db, DEMO_USER_ID, { museumId: museum.id, visitedOn: "2026-05-04" }).catch((e) => e);
-    expect(err.code).toBe("demo_read_only");
+  it("the demo account can add visits and photos like any account", async () => {
+    await seedDemoUser(db);
+    const v = await createVisit(db, DEMO_USER_ID, { museumId: museum.id, visitedOn: "2026-05-04" });
+    await addPhoto(db, DEMO_USER_ID, v.id, { storageKey: KEY, width: 1, height: 1 });
+    const visit = await getVisits(db, DEMO_USER_ID);
+    expect(visit.some((x) => x.id === v.id)).toBe(true);
   });
 
   it("same museum and day reuses the visit", async () => {
