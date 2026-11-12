@@ -18,7 +18,16 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      ".data/**",
+      "playwright-report/**",
+      "test-results/**",
     ],
+  },
+  {
+    rules: {
+      // Paintings are hotlinked Commons thumbnails sized by URL; next/image adds nothing here.
+      "@next/next/no-img-element": "off",
+    },
   },
 ];
 

@@ -1,26 +1,135 @@
 @import "tailwindcss";
 
+/* Gallery wall: the art is the color, the interface stays quiet. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --wall: #ebe7e0;
+  --surface: #f6f4ef;
+  --ink: #1f1d1a;
+  --ink-2: #57524b;
+  --line: #d4cdc2;
+  --accent: #7a2e1f;
+  --accent-ink: #fbf7f2;
+  /* Tiers: gilt (loved) → verdigris (fine) → stone (meh). Red stays for errors/destructive. */
+  --loved: #7d5f16;
+  --fine: #3f5e57;
+  --meh: #635c55;
+  --gilt-soft: #e9dcb8;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 12px 32px -12px rgb(0 0 0 / 0.35);
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --wall: #1b1a18;
+    --surface: #24221f;
+    --ink: #ece8e1;
+    --ink-2: #aaa49a;
+    --line: #3b3833;
+    --accent: #e39a86;
+    --accent-ink: #1b1a18;
+    --loved: #d9b45f;
+    --fine: #93bfb1;
+    --meh: #b3aaa0;
+    --gilt-soft: #3a3222;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.8);
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --wall: #1b1a18;
+  --surface: #24221f;
+  --ink: #ece8e1;
+  --ink-2: #aaa49a;
+  --line: #3b3833;
+  --accent: #e39a86;
+  --accent-ink: #1b1a18;
+  --loved: #d9b45f;
+  --fine: #93bfb1;
+  --meh: #b3aaa0;
+  --gilt-soft: #3a3222;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.8);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-wall: var(--wall);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-loved: var(--loved);
+  --color-fine: var(--fine);
+  --color-meh: var(--meh);
+  --color-gilt-soft: var(--gilt-soft);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --shadow-hung: var(--shadow);
+}
+
+::selection {
+  background: var(--gilt-soft);
+  color: var(--ink);
+}
+
+html,
+body {
+  background: var(--wall);
+  color: var(--ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+
+.painting {
+  box-shadow: var(--shadow);
+  background: var(--surface);
+}
+
+/* In the base layer so utilities (e.g. text color on a filled button) can override. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 3px;
+  }
+  kbd {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0 0.3rem;
+    color: var(--ink-2);
+  }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.toast { animation: toast-in 160ms ease-out; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in { animation: fade-in 220ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Leaflet: OSM standard tiles, quieted to sit behind the art. */
+.tiles-light { filter: grayscale(0.7) contrast(0.92) brightness(1.04); }
+.tiles-dark { filter: invert(1) hue-rotate(180deg) grayscale(0.6) brightness(0.85) contrast(0.9); }
+.leaflet-container {
+  background: var(--surface);
+  font-family: var(--font-sans);
 }

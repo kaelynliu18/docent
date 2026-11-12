@@ -5,23 +5,53 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "pnpm db:migrate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --tsconfig tsconfig.json scripts/migrate.ts",
+    "db:seed": "tsx --tsconfig tsconfig.json scripts/seed.ts",
+    "seed:build": "tsx --tsconfig tsconfig.json scripts/build-seed.ts",
+    "ingest": "tsx --tsconfig tsconfig.json scripts/ingest.ts",
+    "eval:algo": "tsx --tsconfig tsconfig.json scripts/eval-algo.ts",
+    "vapid": "tsx --tsconfig tsconfig.json scripts/vapid.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@tanstack/react-query": "^5.107.1",
+    "aws4fetch": "^1.0.20",
+    "drizzle-orm": "^0.45.4",
+    "exifr": "^7.1.3",
+    "fractional-indexing": "^4.0.0",
+    "leaflet": "^1.9.4",
+    "next": "15.5.29",
+    "postgres": "^4.1.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.29"
+    "react-leaflet": "^5.0.0",
+    "server-only": "^0.0.1",
+    "web-push": "^4.0.0",
+    "zod": "^4.6.7",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.65.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "@types/web-push": "^3.6.4",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   }
 }

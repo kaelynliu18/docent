@@ -1,0 +1,54 @@
+export type Tier = "loved" | "fine" | "meh";
+export const TIERS: Tier[] = ["loved", "fine", "meh"];
+
+export const TIER_LABEL: Record<Tier, string> = {
+  loved: "Loved it",
+  fine: "It was fine",
+  meh: "Not for me",
+};
+
+/** Placeholder artist for paintings a user adds by hand (not in Wikidata). */
+export const UNKNOWN_ARTIST_ID = "X0";
+
+/** Artists that must never shape taste. */
+export const EXCLUDED_ARTIST_IDS = new Set<string>([
+  "Q4233718", // anonymous
+  "Q24238356", // unknown
+  UNKNOWN_ARTIST_ID,
+]);
+
+/** Catalogue ids are Wikidata Q-ids; hand-added paintings are X + 32 hex chars. */
+export const ARTWORK_ID_RE = /^(Q\d+|X[0-9a-f]{32})$/;
+
+export type MovementRef = { id: string; name: string; source: "artwork" | "artist" };
+
+export type GenreRef = { id: string; name: string };
+
+export type RankedForTaste = {
+  artworkId: string;
+  artistId: string;
+  artistName: string;
+  score: number;
+  movements: MovementRef[];
+  genres?: GenreRef[];
+  year?: number | null;
+};
+
+export type Affinity = { id: string; name: string; affinity: number; count: number };
+
+export type TasteProfile = {
+  artists: Map<string, Affinity>;
+  movements: Map<string, Affinity>;
+  /** Portrait, landscape, still life… (Wikidata P136; on ~94% of paintings). */
+  genres: Map<string, Affinity>;
+  /** Centuries, keyed "C19". Derived from the year. */
+  periods: Map<string, Affinity>;
+};
+
+/** What the predictor and queue know about a painting. */
+export type ArtworkFeatures = {
+  artistId: string;
+  movementIds: string[];
+  genreIds?: string[];
+  year?: number | null;
+};

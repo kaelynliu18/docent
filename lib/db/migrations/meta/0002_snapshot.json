@@ -1,0 +1,1470 @@
+{
+  "id": "c13d2996-16b1-4a13-b78f-fae21101a78f",
+  "prevId": "83d6a91b-2183-451d-a4cf-e204dc5c109b",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.artist_movements": {
+      "name": "artist_movements",
+      "schema": "",
+      "columns": {
+        "artist_id": {
+          "name": "artist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "movement_id": {
+          "name": "movement_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "artist_movements_artist_id_artists_id_fk": {
+          "name": "artist_movements_artist_id_artists_id_fk",
+          "tableFrom": "artist_movements",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "artist_movements_movement_id_movements_id_fk": {
+          "name": "artist_movements_movement_id_movements_id_fk",
+          "tableFrom": "artist_movements",
+          "tableTo": "movements",
+          "columnsFrom": [
+            "movement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "artist_movements_artist_id_movement_id_pk": {
+          "name": "artist_movements_artist_id_movement_id_pk",
+          "columns": [
+            "artist_id",
+            "movement_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.artists": {
+      "name": "artists",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birth_year": {
+          "name": "birth_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "death_year": {
+          "name": "death_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sitelinks": {
+          "name": "sitelinks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.artwork_genres": {
+      "name": "artwork_genres",
+      "schema": "",
+      "columns": {
+        "artwork_id": {
+          "name": "artwork_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "genre_id": {
+          "name": "genre_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "artwork_genres_artwork_id_artworks_id_fk": {
+          "name": "artwork_genres_artwork_id_artworks_id_fk",
+          "tableFrom": "artwork_genres",
+          "tableTo": "artworks",
+          "columnsFrom": [
+            "artwork_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "artwork_genres_genre_id_genres_id_fk": {
+          "name": "artwork_genres_genre_id_genres_id_fk",
+          "tableFrom": "artwork_genres",
+          "tableTo": "genres",
+          "columnsFrom": [
+            "genre_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "artwork_genres_artwork_id_genre_id_pk": {
+          "name": "artwork_genres_artwork_id_genre_id_pk",
+          "columns": [
+            "artwork_id",
+            "genre_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.artwork_movements": {
+      "name": "artwork_movements",
+      "schema": "",
+      "columns": {
+        "artwork_id": {
+          "name": "artwork_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "movement_id": {
+          "name": "movement_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "artwork_movement_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "artwork_movements_artwork_id_artworks_id_fk": {
+          "name": "artwork_movements_artwork_id_artworks_id_fk",
+          "tableFrom": "artwork_movements",
+          "tableTo": "artworks",
+          "columnsFrom": [
+            "artwork_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "artwork_movements_movement_id_movements_id_fk": {
+          "name": "artwork_movements_movement_id_movements_id_fk",
+          "tableFrom": "artwork_movements",
+          "tableTo": "movements",
+          "columnsFrom": [
+            "movement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "artwork_movements_artwork_id_movement_id_pk": {
+          "name": "artwork_movements_artwork_id_movement_id_pk",
+          "columns": [
+            "artwork_id",
+            "movement_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.artworks": {
+      "name": "artworks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artist_id": {
+          "name": "artist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_file": {
+          "name": "image_file",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sitelinks": {
+          "name": "sitelinks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "fame": {
+          "name": "fame",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "museum_id": {
+          "name": "museum_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "in_pool": {
+          "name": "in_pool",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "artist_label": {
+          "name": "artist_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "artworks_pool_idx": {
+          "name": "artworks_pool_idx",
+          "columns": [
+            {
+              "expression": "in_pool",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fame",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "artworks_museum_idx": {
+          "name": "artworks_museum_idx",
+          "columns": [
+            {
+              "expression": "museum_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "artworks_artist_idx": {
+          "name": "artworks_artist_idx",
+          "columns": [
+            {
+              "expression": "artist_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "artworks_owner_idx": {
+          "name": "artworks_owner_idx",
+          "columns": [
+            {
+              "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "artworks_artist_id_artists_id_fk": {
+          "name": "artworks_artist_id_artists_id_fk",
+          "tableFrom": "artworks",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "artworks_museum_id_museums_id_fk": {
+          "name": "artworks_museum_id_museums_id_fk",
+          "tableFrom": "artworks",
+          "tableTo": "museums",
+          "columnsFrom": [
+            "museum_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "artworks_owner_id_users_id_fk": {
+          "name": "artworks_owner_id_users_id_fk",
+          "tableFrom": "artworks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.comparisons": {
+      "name": "comparisons",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "winner_id": {
+          "name": "winner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "loser_id": {
+          "name": "loser_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "was_tie": {
+          "name": "was_tie",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "comparisons_user_idx": {
+          "name": "comparisons_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "comparisons_user_id_users_id_fk": {
+          "name": "comparisons_user_id_users_id_fk",
+          "tableFrom": "comparisons",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "comparisons_winner_id_artworks_id_fk": {
+          "name": "comparisons_winner_id_artworks_id_fk",
+          "tableFrom": "comparisons",
+          "tableTo": "artworks",
+          "columnsFrom": [
+            "winner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "comparisons_loser_id_artworks_id_fk": {
+          "name": "comparisons_loser_id_artworks_id_fk",
+          "tableFrom": "comparisons",
+          "tableTo": "artworks",
+          "columnsFrom": [
+            "loser_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.genres": {
+      "name": "genres",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ingest_runs": {
+      "name": "ingest_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pass": {
+          "name": "pass",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rows_upserted": {
+          "name": "rows_upserted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.movements": {
+      "name": "movements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.museum_artist_holdings": {
+      "name": "museum_artist_holdings",
+      "schema": "",
+      "columns": {
+        "museum_id": {
+          "name": "museum_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artist_id": {
+          "name": "artist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "painting_count": {
+          "name": "painting_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "mah_artist_idx": {
+          "name": "mah_artist_idx",
+          "columns": [
+            {
+              "expression": "artist_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "museum_artist_holdings_museum_id_museums_id_fk": {
+          "name": "museum_artist_holdings_museum_id_museums_id_fk",
+          "tableFrom": "museum_artist_holdings",
+          "tableTo": "museums",
+          "columnsFrom": [
+            "museum_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "museum_artist_holdings_artist_id_artists_id_fk": {
+          "name": "museum_artist_holdings_artist_id_artists_id_fk",
+          "tableFrom": "museum_artist_holdings",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "museum_artist_holdings_museum_id_artist_id_pk": {
+          "name": "museum_artist_holdings_museum_id_artist_id_pk",
+          "columns": [
+            "museum_id",
+            "artist_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.museum_marks": {
+      "name": "museum_marks",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "museum_id": {
+          "name": "museum_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "museum_mark_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "museum_marks_user_id_users_id_fk": {
+          "name": "museum_marks_user_id_users_id_fk",
+          "tableFrom": "museum_marks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "museum_marks_museum_id_museums_id_fk": {
+          "name": "museum_marks_museum_id_museums_id_fk",
+          "tableFrom": "museum_marks",
+          "tableTo": "museums",
+          "columnsFrom": [
+            "museum_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "museum_marks_user_id_museum_id_pk": {
+          "name": "museum_marks_user_id_museum_id_pk",
+          "columns": [
+            "user_id",
+            "museum_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.museum_movement_holdings": {
+      "name": "museum_movement_holdings",
+      "schema": "",
+      "columns": {
+        "museum_id": {
+          "name": "museum_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "movement_id": {
+          "name": "movement_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "painting_count": {
+          "name": "painting_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "mmh_movement_idx": {
+          "name": "mmh_movement_idx",
+          "columns": [
+            {
+              "expression": "movement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "museum_movement_holdings_museum_id_museums_id_fk": {
+          "name": "museum_movement_holdings_museum_id_museums_id_fk",
+          "tableFrom": "museum_movement_holdings",
+          "tableTo": "museums",
+          "columnsFrom": [
+            "museum_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "museum_movement_holdings_movement_id_movements_id_fk": {
+          "name": "museum_movement_holdings_movement_id_movements_id_fk",
+          "tableFrom": "museum_movement_holdings",
+          "tableTo": "movements",
+          "columnsFrom": [
+            "movement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "museum_movement_holdings_museum_id_movement_id_pk": {
+          "name": "museum_movement_holdings_museum_id_movement_id_pk",
+          "columns": [
+            "museum_id",
+            "movement_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.museums": {
+      "name": "museums",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lon": {
+          "name": "lon",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "website": {
+          "name": "website",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sitelinks": {
+          "name": "sitelinks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "museums_lat_lon_idx": {
+          "name": "museums_lat_lon_idx",
+          "columns": [
+            {
+              "expression": "lat",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lon",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.photos": {
+      "name": "photos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "visit_id": {
+          "name": "visit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artwork_id": {
+          "name": "artwork_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "width": {
+          "name": "width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height": {
+          "name": "height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "photos_visit_idx": {
+          "name": "photos_visit_idx",
+          "columns": [
+            {
+              "expression": "visit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "photos_user_artwork_idx": {
+          "name": "photos_user_artwork_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "artwork_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "photos_user_id_users_id_fk": {
+          "name": "photos_user_id_users_id_fk",
+          "tableFrom": "photos",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "photos_visit_id_visits_id_fk": {
+          "name": "photos_visit_id_visits_id_fk",
+          "tableFrom": "photos",
+          "tableTo": "visits",
+          "columnsFrom": [
+            "visit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "photos_artwork_id_artworks_id_fk": {
+          "name": "photos_artwork_id_artworks_id_fk",
+          "tableFrom": "photos",
+          "tableTo": "artworks",
+          "columnsFrom": [
+            "artwork_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.rankings": {
+      "name": "rankings",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artwork_id": {
+          "name": "artwork_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tier": {
+          "name": "tier",
+          "type": "tier",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "rankings_user_tier_pos_idx": {
+          "name": "rankings_user_tier_pos_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "rankings_user_id_users_id_fk": {
+          "name": "rankings_user_id_users_id_fk",
+          "tableFrom": "rankings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "rankings_artwork_id_artworks_id_fk": {
+          "name": "rankings_artwork_id_artworks_id_fk",
+          "tableFrom": "rankings",
+          "tableTo": "artworks",
+          "columnsFrom": [
+            "artwork_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "rankings_user_id_artwork_id_pk": {
+          "name": "rankings_user_id_artwork_id_pk",
+          "columns": [
+            "user_id",
+            "artwork_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.skips": {
+      "name": "skips",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artwork_id": {
+          "name": "artwork_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skipped_at": {
+          "name": "skipped_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "skips_user_id_users_id_fk": {
+          "name": "skips_user_id_users_id_fk",
+          "tableFrom": "skips",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "skips_artwork_id_artworks_id_fk": {
+          "name": "skips_artwork_id_artworks_id_fk",
+          "tableFrom": "skips",
+          "tableTo": "artworks",
+          "columnsFrom": [
+            "artwork_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "skips_user_id_artwork_id_pk": {
+          "name": "skips_user_id_artwork_id_pk",
+          "columns": [
+            "user_id",
+            "artwork_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "home_lat": {
+          "name": "home_lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "home_lon": {
+          "name": "home_lon",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.visits": {
+      "name": "visits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "museum_id": {
+          "name": "museum_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "visited_on": {
+          "name": "visited_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "visits_user_idx": {
+          "name": "visits_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "visited_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "visits_user_id_users_id_fk": {
+          "name": "visits_user_id_users_id_fk",
+          "tableFrom": "visits",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "visits_museum_id_museums_id_fk": {
+          "name": "visits_museum_id_museums_id_fk",
+          "tableFrom": "visits",
+          "tableTo": "museums",
+          "columnsFrom": [
+            "museum_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.artwork_movement_source": {
+      "name": "artwork_movement_source",
+      "schema": "public",
+      "values": [
+        "artwork",
+        "artist"
+      ]
+    },
+    "public.museum_mark_status": {
+      "name": "museum_mark_status",
+      "schema": "public",
+      "values": [
+        "visited",
+        "want"
+      ]
+    },
+    "public.tier": {
+      "name": "tier",
+      "schema": "public",
+      "values": [
+        "loved",
+        "fine",
+        "meh"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
