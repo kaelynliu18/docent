@@ -145,9 +145,3 @@ export async function googleIdentity(code: string, redirectUri: string) {
   return { googleSub: u.sub, email: u.email };
 }
 
-/** Writes from the shared demo account are limited to ranking (it's reset nightly). */
-export function assertNotDemo(userId: string, what = "add visits or photos") {
-  if (userId === DEMO_USER_ID) {
-    throw new ApiError(403, "demo_read_only", `The demo account can't ${what}. Sign out and start your own; it's free.`);
-  }
-}

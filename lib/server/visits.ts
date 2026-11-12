@@ -7,7 +7,6 @@ import { ARTWORK_ID_RE, UNKNOWN_ARTIST_ID } from "@/lib/algo/types";
 import { haversineKm } from "@/lib/algo/match";
 import { commonsImage } from "@/lib/images";
 import { ApiError } from "./errors";
-import { assertNotDemo } from "./auth";
 import { limit } from "./rate";
 
 /**
@@ -75,7 +74,6 @@ export const createVisitBody = z.object({
 });
 
 export async function createVisit(db: DB, userId: string, raw: unknown) {
-  assertNotDemo(userId);
   const body = createVisitBody.parse(raw);
   await limit(db, `visit:${userId}`, 60, 86400, "That's a lot of visits for one day. Try again tomorrow.");
   const day = new Date(body.visitedOn + "T00:00:00Z");
@@ -245,7 +243,6 @@ async function scoresFor(db: DB, userId: string, ids: string[]) {
 }
 
 export async function deleteVisit(db: DB, userId: string, visitId: string) {
-  assertNotDemo(userId, "delete visits");
   await ownVisit(db, userId, visitId);
   const ps = await db
     .select({ key: s.photos.storageKey })
@@ -263,7 +260,6 @@ export async function addPhoto(
   visitId: string,
   p: { storageKey: string; width: number | null; height: number | null },
 ) {
-  assertNotDemo(userId);
   await ownVisit(db, userId, visitId);
   const [row] = await db.insert(s.photos).values({ userId, visitId, ...p }).returning();
   return row;
@@ -280,13 +276,11 @@ export async function getPhotoKey(db: DB, userId: string | null, photoId: string
 
 /** Check before storing bytes, so a refused upload never touches storage. */
 export async function assertCanUpload(db: DB, userId: string, visitId: string) {
-  assertNotDemo(userId);
   await ownVisit(db, userId, visitId);
   await limit(db, `upload:${userId}`, 600, 86400, "You've uploaded a lot today. Try the rest tomorrow.");
 }
 
 export async function removePhoto(db: DB, userId: string, photoId: string) {
-  assertNotDemo(userId, "remove photos");
   if (!/^[0-9a-f-]{36}$/.test(photoId)) throw new ApiError(404, "not_found", "We couldn't find that photo.");
   const [p] = await db
     .delete(s.photos)
@@ -304,7 +298,6 @@ export const identifyBody = z.union([
 
 /** Say which painting a photo shows: a catalogue work, a new hand-added one, or "not sure yet". */
 export async function identifyPhoto(db: DB, userId: string, photoId: string, raw: unknown) {
-  assertNotDemo(userId, "change photos");
   const body = identifyBody.parse(raw);
   if (!/^[0-9a-f-]{36}$/.test(photoId)) throw new ApiError(404, "not_found", "We couldn't find that photo.");
   const [photo] = await db
