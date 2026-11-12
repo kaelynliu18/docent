@@ -9,6 +9,8 @@ import { explainPrediction, explanationText, type RankedRef } from "@/lib/algo/e
 import { blendedTierScores } from "@/lib/algo/bradleyTerry";
 import { buildTaste, periodOf, topAbsolute, topNegative, topPositive } from "@/lib/algo/taste";
 import { predictScore } from "@/lib/algo/predict";
+import { learnWeights } from "@/lib/algo/personal";
+import { cleanMoods, lookTags } from "@/lib/algo/look";
 import { masterpieceTerm, matchMuseums, type MatchTerm, type MuseumInput } from "@/lib/algo/match";
 import { ARTWORK_ID_RE, TIERS, type ArtworkFeatures, type GenreRef, type MovementRef, type Tier } from "@/lib/algo/types";
 import { commonsImage } from "@/lib/images";
@@ -33,6 +35,10 @@ export type ArtworkCard = {
   custom: boolean;
   /** Shows nudity (Wikidata depicts or genre). */
   nudity: boolean;
+  /** Colour tags measured from the image (empty until the looks pass has run). */
+  looks: string[];
+  /** Moods tagged from the image (empty until tagged). */
+  moods: string[];
 };
 
 export type RankedItem = ArtworkCard & { tier: Tier; score: number; rank: number; tierIndex: number };
@@ -55,6 +61,8 @@ async function loadCards(db: DB, ids: string[], userId: string | null = null): P
       artistName: sql<string>`coalesce(${s.artworks.artistLabel}, ${s.artists.name})`,
       ownerId: s.artworks.ownerId,
       nudity: s.artworks.nudity,
+      colors: s.artworks.colors,
+      moods: s.artworks.moods,
       museumId: s.museums.id,
       museumName: s.museums.name,
       city: s.museums.city,
@@ -100,6 +108,8 @@ async function loadCards(db: DB, ids: string[], userId: string | null = null): P
       thumbUrl: mine?.thumbUrl ?? commonsImage(r.imageFile, 240),
       custom: !!r.ownerId,
       nudity: r.nudity,
+      looks: lookTags(r.colors),
+      moods: cleanMoods(r.moods),
       artistId: r.artistId,
       artistName: r.artistName,
       movements: (mv.get(r.id) ?? []).sort((a, b) => (a.source === b.source ? 0 : a.source === "artwork" ? -1 : 1)),
@@ -116,6 +126,8 @@ export const featuresOf = (c: ArtworkCard): ArtworkFeatures => ({
   genreIds: c.genres.map((g) => g.id),
   year: c.year,
   tags: c.nudity ? ["nudity"] : [],
+  looks: c.looks,
+  moods: c.moods,
 });
 
 /* ───────── Preferences ───────── */
@@ -296,16 +308,16 @@ const tasteRow = (r: RankedItem) => ({
   genres: r.genres,
   year: r.year,
   tags: r.nudity ? ["nudity"] : [],
+  looks: r.looks,
+  moods: r.moods,
 });
 
 async function rankedForTaste(db: DB, userId: string | null) {
   const list = await getRankedList(db, userId);
   const all = [...list.loved, ...list.fine, ...list.meh];
-  return {
-    list,
-    all,
-    taste: buildTaste(all.map(tasteRow)),
-  };
+  const rows = all.map(tasteRow);
+  // Personal weights kick in at PERSONAL_MIN_RANKINGS; before that learnWeights returns the defaults.
+  return { list, all, taste: { ...buildTaste(rows), weights: learnWeights(rows) } };
 }
 
 export async function getTasteProfile(db: DB, userId: string | null) {
@@ -458,6 +470,7 @@ async function predictedWorksAt(
   const likedArtists = topPositive(taste.artists, 50).map((a) => a.id);
   const likedMoves = topPositive(taste.movements, 20).map((m) => m.id);
   const likedGenres = topPositive(taste.genres, 20).map((g) => g.id);
+  const likedMoods = topPositive(taste.moods, 4).map((m) => m.id);
   const touches = [
     likedArtists.length ? inArray(s.artworks.artistId, likedArtists) : undefined,
     likedMoves.length
@@ -465,6 +478,10 @@ async function predictedWorksAt(
       : undefined,
     likedGenres.length
       ? sql`exists (select 1 from artwork_genres ag where ag.artwork_id = ${s.artworks.id} and ag.genre_id in ${likedGenres})`
+      : undefined,
+    // A painting by an artist you've never ranked can still match on mood.
+    likedMoods.length
+      ? sql`${s.artworks.moods} && array[${sql.join(likedMoods.map((m) => sql`${m}`), sql`, `)}]::text[]`
       : undefined,
   ].filter(Boolean);
   if (onlyLiked && !touches.length) return out;
@@ -485,6 +502,8 @@ async function predictedWorksAt(
       artistId: s.artworks.artistId,
       artistName: s.artists.name,
       nudity: s.artworks.nudity,
+      colors: s.artworks.colors,
+      moods: s.artworks.moods,
       movementIds: sql<string[] | null>`(select array_agg(am.movement_id) from artwork_movements am where am.artwork_id = ${s.artworks.id})`,
       genreIds: sql<string[] | null>`(select array_agg(ag.genre_id) from artwork_genres ag where ag.artwork_id = ${s.artworks.id})`,
     })
@@ -497,7 +516,15 @@ async function predictedWorksAt(
   for (const r of rows) {
     if (exclude.has(r.id) || !r.museumId) continue;
     const p = predictScore(
-      { artistId: r.artistId, movementIds: moves.get(r.id) ?? [], genreIds: gens.get(r.id) ?? [], year: r.year, tags: r.nudity ? ["nudity"] : [] },
+      {
+        artistId: r.artistId,
+        movementIds: moves.get(r.id) ?? [],
+        genreIds: gens.get(r.id) ?? [],
+        year: r.year,
+        tags: r.nudity ? ["nudity"] : [],
+        looks: lookTags(r.colors),
+        moods: cleanMoods(r.moods),
+      },
       taste,
     );
     const list = out.get(r.museumId) ?? [];

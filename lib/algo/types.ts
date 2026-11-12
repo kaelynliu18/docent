@@ -34,6 +34,10 @@ export type RankedForTaste = {
   year?: number | null;
   /** Content tags that cut across genres, e.g. "nudity". */
   tags?: string[];
+  /** Colour tags from the image (lookTags in look.ts), e.g. "warm", "muted". */
+  looks?: string[];
+  /** 1–3 moods from the image (MOODS in look.ts). */
+  moods?: string[];
 };
 
 /** Content tags the app knows how to name. */
@@ -50,6 +54,14 @@ export type TasteProfile = {
   periods: Map<string, Affinity>;
   /** Content tags (CONTENT_TAGS), learned only from paintings that carry them. */
   content: Map<string, Affinity>;
+  /** Colour tags (LOOK_TAGS). */
+  looks: Map<string, Affinity>;
+  /** Moods (MOODS). */
+  moods: Map<string, Affinity>;
+  /** Each artist's ranked paintings as (year, weight), so a prediction can favour the same phase of a career. */
+  artistWorks: Map<string, { year: number | null; w: number }[]>;
+  /** This person's fitted trait weights (personal.ts); predictions use the defaults when absent. */
+  weights?: Partial<Record<"artist" | "movement" | "genre" | "period" | "content" | "look" | "mood", number>>;
 };
 
 /** What the predictor and queue know about a painting. */
@@ -59,4 +71,6 @@ export type ArtworkFeatures = {
   genreIds?: string[];
   year?: number | null;
   tags?: string[];
+  looks?: string[];
+  moods?: string[];
 };

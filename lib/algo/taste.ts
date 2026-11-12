@@ -1,3 +1,4 @@
+import { LOOK_TAGS, MOODS } from "./look";
 import { CONTENT_TAGS, EXCLUDED_ARTIST_IDS, type Affinity, type RankedForTaste, type TasteProfile } from "./types";
 
 /** 10 → +1, 5 → 0, 0 → −1 */
@@ -40,13 +41,21 @@ export function buildTaste(ranked: RankedForTaste[]): TasteProfile {
   const genres: Acc = new Map();
   const periods: Acc = new Map();
   const content: Acc = new Map();
+  const looks: Acc = new Map();
+  const moods: Acc = new Map();
+  const artistWorks = new Map<string, { year: number | null; w: number }[]>();
 
   for (const r of ranked) {
-    // Content counts even for unknown artists: "no nudity" doesn't depend on who painted it.
-    for (const t of new Set(r.tags ?? [])) if (CONTENT_TAGS[t]) add(content, t, CONTENT_TAGS[t], signedWeight(r.score));
-    if (EXCLUDED_ARTIST_IDS.has(r.artistId)) continue;
     const w = signedWeight(r.score);
+    // Content, colour and mood count even for unknown artists: they don't depend on who painted it.
+    for (const t of new Set(r.tags ?? [])) if (CONTENT_TAGS[t]) add(content, t, CONTENT_TAGS[t], w);
+    for (const t of new Set(r.looks ?? [])) if (LOOK_TAGS[t]) add(looks, t, LOOK_TAGS[t], w);
+    for (const t of new Set(r.moods ?? [])) if (MOODS[t]) add(moods, t, MOODS[t], w);
+    if (EXCLUDED_ARTIST_IDS.has(r.artistId)) continue;
     add(artists, r.artistId, r.artistName, w);
+    const works = artistWorks.get(r.artistId) ?? [];
+    works.push({ year: r.year ?? null, w });
+    artistWorks.set(r.artistId, works);
 
     // A painting may list a movement both directly and via its artist: use the stronger.
     const seen = new Map<string, { name: string; f: number }>();
@@ -61,7 +70,16 @@ export function buildTaste(ranked: RankedForTaste[]): TasteProfile {
     const p = periodOf(r.year);
     if (p) add(periods, p.id, p.name, w);
   }
-  return { artists: finish(artists), movements: finish(movements), genres: finish(genres), periods: finish(periods), content: finish(content) };
+  return {
+    artists: finish(artists),
+    movements: finish(movements),
+    genres: finish(genres),
+    periods: finish(periods),
+    content: finish(content),
+    looks: finish(looks),
+    moods: finish(moods),
+    artistWorks,
+  };
 }
 
 /** Top positive entries, strongest first. */
@@ -86,5 +104,14 @@ export function topAbsolute(m: Map<string, Affinity>, k: number): Affinity[] {
 }
 
 export function emptyTaste(): TasteProfile {
-  return { artists: new Map(), movements: new Map(), genres: new Map(), periods: new Map(), content: new Map() };
+  return {
+    artists: new Map(),
+    movements: new Map(),
+    genres: new Map(),
+    periods: new Map(),
+    content: new Map(),
+    looks: new Map(),
+    moods: new Map(),
+    artistWorks: new Map(),
+  };
 }

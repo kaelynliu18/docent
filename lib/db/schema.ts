@@ -1,9 +1,11 @@
+import type { ColorStats } from "@/lib/algo/look";
 import {
   boolean,
   date,
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -67,6 +69,10 @@ export const artworks = pgTable(
     inPool: boolean("in_pool").notNull().default(false),
     /** Shows nudity: Wikidata depicts (P180) nudity/naked/nude… or genre nude/erotic art. */
     nudity: boolean("nudity").notNull().default(false),
+    /** Colour measured from the image (lib/algo/look.ts); null until the looks pass has run. */
+    colors: jsonb("colors").$type<ColorStats>(),
+    /** 1–3 moods from MOODS, tagged once from the image; null until tagged. */
+    moods: text("moods").array(),
     /** Set only for a painting a user added by hand (not in Wikidata); never shown to anyone else. */
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "cascade" }),
     /** Free-text artist for hand-added paintings (their artist_id is the UNKNOWN_ARTIST placeholder). */

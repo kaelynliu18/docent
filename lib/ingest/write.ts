@@ -51,7 +51,12 @@ export async function writeDataset(db: DB, ds: Dataset): Promise<number> {
       s.artworks,
       ds.artworks.map((w) => ({ ...w, fame: w.fame ?? 0, nudity: w.nudity ?? false, updatedAt: new Date() })),
       s.artworks.id,
-      ["title", "artistId", "year", "imageFile", "sitelinks", "fame", "nudity", "museumId", "inPool", "updatedAt"],
+      [
+        "title", "artistId", "year", "imageFile", "sitelinks", "fame", "nudity", "museumId", "inPool", "updatedAt",
+        // Colour and mood come from the looks pass, not Wikidata: only a dataset that carries
+        // them (the seed file) may overwrite them, so the weekly ingest keeps what's there.
+        ...(ds.artworks.some((w) => w.colors !== undefined || w.moods !== undefined) ? ["colors", "moods"] : []),
+      ],
     );
 
     // Link tables and holdings are fully derived: replace them.

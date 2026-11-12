@@ -1,3 +1,4 @@
+import type { ColorStats } from "@/lib/algo/look";
 export type ArtistRow = {
   id: string;
   name: string;
@@ -29,6 +30,10 @@ export type ArtworkRow = {
   fame?: number;
   /** Depicts nudity, or genre nude/erotic art. */
   nudity?: boolean;
+  /** Colour measured from the image (scripts/looks.ts). Only seed files carry it; Wikidata doesn't. */
+  colors?: ColorStats | null;
+  /** 1–3 moods (scripts/looks.ts). Only seed files carry it. */
+  moods?: string[] | null;
 };
 
 /** Everything ingestion produces; also the shape of fixtures/seed.json. */

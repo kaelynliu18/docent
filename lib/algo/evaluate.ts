@@ -1,6 +1,7 @@
 import { scoreAt } from "./scoring";
 import { buildTaste, periodOf } from "./taste";
-import { PREDICT_WEIGHTS, predictScore } from "./predict";
+import { PREDICT_WEIGHTS, predictScore, type Weights } from "./predict";
+import { learnWeights } from "./personal";
 import { TIERS, type RankedForTaste, type Tier } from "./types";
 
 /**
@@ -18,10 +19,46 @@ export type EvalItem = {
   movementIds: string[];
   genreIds: string[];
   year: number | null;
+  /** Colour tags (lookTags). */
+  looks?: string[];
+  /** Mood tags. */
+  moods?: string[];
 };
 
-export type TruthWeights = { artist: number; movement: number; genre: number; period: number; noise: number };
+/**
+ * How much each hidden taste drives a simulated person's reaction.
+ * look/mood: tastes for colour tags and moods. phase: an extra liking per
+ * artist per 8-year stretch of their career (artists change), on top of the
+ * liking for the artist overall.
+ */
+export type TruthWeights = {
+  artist: number;
+  movement: number;
+  genre: number;
+  period: number;
+  noise: number;
+  look?: number;
+  mood?: number;
+  phase?: number;
+};
 export const DEFAULT_TRUTH: TruthWeights = { artist: 1, movement: 0.6, genre: 0.6, period: 0.3, noise: 0.5 };
+
+const meanNum = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+
+/** A person's hidden reaction to a painting, before noise. */
+function utilityOf(it: EvalItem, truth: TruthWeights, pref: (key: string) => number): number {
+  const p = periodOf(it.year);
+  return (
+    truth.artist * pref(`a:${it.artistId}`) +
+    truth.movement * meanNum(it.movementIds.map((m) => pref(`m:${m}`))) +
+    truth.genre * meanNum(it.genreIds.map((g) => pref(`g:${g}`))) +
+    truth.period * (p ? pref(`p:${p.id}`) : 0) +
+    // Only draw tastes that matter, so runs without them reproduce earlier numbers exactly.
+    (truth.look ? truth.look * meanNum((it.looks ?? []).map((t) => pref(`l:${t}`))) : 0) +
+    (truth.mood ? truth.mood * meanNum((it.moods ?? []).map((t) => pref(`o:${t}`))) : 0) +
+    (truth.phase && it.year != null ? truth.phase * pref(`ap:${it.artistId}:${Math.floor(it.year / 8)}`) : 0)
+  );
+}
 
 export function mulberry32(seed: number) {
   return () => {
@@ -74,19 +111,9 @@ export function makeUser(rng: () => number, truth: TruthWeights = DEFAULT_TRUTH)
     if (!prefs.has(key)) prefs.set(key, gaussian(rng));
     return prefs.get(key)!;
   };
-  const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
   const memo = new Map<string, number>();
   return (it: EvalItem) => {
-    if (!memo.has(it.id)) {
-      memo.set(
-        it.id,
-        truth.artist * pref(`a:${it.artistId}`) +
-          truth.movement * mean(it.movementIds.map((m) => pref(`m:${m}`))) +
-          truth.genre * mean(it.genreIds.map((g) => pref(`g:${g}`))) +
-          truth.period * (periodOf(it.year) ? pref(`p:${periodOf(it.year)!.id}`) : 0) +
-          truth.noise * gaussian(rng),
-      );
-    }
+    if (!memo.has(it.id)) memo.set(it.id, utilityOf(it, truth, pref) + truth.noise * gaussian(rng));
     return memo.get(it.id)!;
   };
 }
@@ -102,7 +129,12 @@ export function shuffle<T>(xs: T[], rng: () => number): T[] {
 
 export function evaluatePredictors(
   items: EvalItem[],
-  predictors: Record<string, typeof PREDICT_WEIGHTS>,
+  /**
+   * Fixed weights, or "personal" to fit weights to each simulated person's own
+   * rankings. `{ weights, phase: false }` ignores when in a career a painting
+   * was made (the pre-v3 behaviour).
+   */
+  predictors: Record<string, Partial<Weights> | "personal" | { weights: Partial<Weights> | "personal"; phase: boolean }>,
   opts: { users?: number; train?: number; test?: number; seed?: number; truth?: TruthWeights } = {},
 ): Record<string, { spearman: number; top10Hit: number }> {
   const { users = 200, train = 25, test = 300, seed = 1, truth = DEFAULT_TRUTH } = opts;
@@ -115,13 +147,7 @@ export function evaluatePredictors(
       if (!prefs.has(key)) prefs.set(key, gaussian(rng));
       return prefs.get(key)!;
     };
-    const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
-    const utility = (it: EvalItem) =>
-      truth.artist * pref(`a:${it.artistId}`) +
-      truth.movement * mean(it.movementIds.map((m) => pref(`m:${m}`))) +
-      truth.genre * mean(it.genreIds.map((g) => pref(`g:${g}`))) +
-      truth.period * (periodOf(it.year) ? pref(`p:${periodOf(it.year)!.id}`) : 0) +
-      truth.noise * gaussian(rng);
+    const utility = (it: EvalItem) => utilityOf(it, truth, pref) + truth.noise * gaussian(rng);
 
     // Sample without replacement.
     const shuffled = [...items];
@@ -147,14 +173,21 @@ export function evaluatePredictors(
           movements: it.movementIds.map((id) => ({ id, name: id, source: "artwork" as const })),
           genres: it.genreIds.map((id) => ({ id, name: id })),
           year: it.year,
+          looks: it.looks,
+          moods: it.moods,
         }),
       );
     });
     const taste = buildTaste(ranked);
+    let personal: Weights | null = null;
     const truthTop = new Set([...testSet].sort((a, b) => b.u - a.u).slice(0, 10).map((x) => x.it.id));
 
-    for (const [name, w] of Object.entries(predictors)) {
-      const preds = testSet.map(({ it }) => predictScore(it, taste, w).score);
+    const noPhase = { ...taste, artistWorks: new Map() };
+    for (const [name, spec] of Object.entries(predictors)) {
+      const { weights, phase } = typeof spec === "object" && "phase" in spec ? spec : { weights: spec, phase: true };
+      const w = weights === "personal" ? (personal ??= learnWeights(ranked)) : weights;
+      const t = phase ? taste : noPhase;
+      const preds = testSet.map(({ it }) => predictScore(it, t, w).score);
       totals[name].spearman += spearman(preds, testSet.map((x) => x.u));
       const top = testSet
         .map((x, i) => ({ id: x.it.id, p: preds[i] }))
