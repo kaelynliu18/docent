@@ -523,7 +523,15 @@ export async function getHeroPaintings(db: DB, n = 8) {
   const rows = await db
     .select({ id: s.artworks.id })
     .from(s.artworks)
-    .where(and(eq(s.artworks.inPool, true), sql`${s.artworks.imageFile} is not null`))
+    .where(
+      and(
+        eq(s.artworks.inPool, true),
+        sql`${s.artworks.imageFile} is not null`,
+        // The landing page is the first thing anyone sees: no nudes or erotic art.
+        sql`not exists (select 1 from artwork_genres ag join genres g on g.id = ag.genre_id
+          where ag.artwork_id = ${s.artworks.id} and g.name ~* '(nude|erotic)')`,
+      ),
+    )
     .orderBy(desc(s.artworks.fame), desc(s.artworks.sitelinks))
     .limit(n);
   const cards = await loadCards(db, rows.map((r) => r.id));

@@ -8,6 +8,7 @@ import { readSeed, seedArt, seedDemoUser, DEMO_USER_ID } from "@/lib/db/seed";
 import {
   deleteRanking,
   getMuseumMatches,
+  getHeroPaintings,
   getPending,
   getRankedList,
   getTasteProfile,
@@ -252,5 +253,16 @@ describe("visits and photos", () => {
     expect(visits.length).toBe(demo.visits);
     expect(visits[0].toRank).toBe(3);
     expect((await getPending(db, DEMO_USER_ID)).length).toBe(3);
+  });
+
+  it("demo account and landing page contain no nudes or erotic art", async () => {
+    await seedDemoUser(db);
+    const shown = [
+      ...(await getPending(db, DEMO_USER_ID)),
+      ...Object.values(await getRankedList(db, DEMO_USER_ID)).flat(),
+      ...(await getHeroPaintings(db, 8)),
+    ];
+    expect(shown.length).toBeGreaterThan(30);
+    for (const w of shown) for (const g of w.genres) expect(g.name).not.toMatch(/nude|erotic/i);
   });
 });
