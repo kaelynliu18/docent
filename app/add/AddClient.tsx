@@ -175,6 +175,12 @@ export function AddClient() {
             Log a visit
           </Link>
         </p>
+        <p className="mt-2 text-sm text-ink-2">
+          Just want to know what a painting is?{" "}
+          <Link href="/scan" className="text-ink underline decoration-line underline-offset-4">
+            Scan it
+          </Link>
+        </p>
       </section>
     );
   }

@@ -8,6 +8,10 @@ import { haversineKm } from "@/lib/algo/match";
 import { commonsImage } from "@/lib/images";
 import { ApiError } from "./errors";
 import { limit } from "./rate";
+import { loadIndexes } from "./embeddings";
+import { EMBEDDING, SCAN } from "@/lib/algo/config";
+import { normalize, topK } from "@/lib/algo/vectors";
+import { pickMatches } from "@/lib/algo/scan";
 
 /**
  * Visits: a user logs a trip to a museum, uploads the photos they took, and
@@ -408,4 +412,73 @@ export async function hasPhotoOf(db: DB, userId: string, artworkId: string) {
     .where(and(eq(s.photos.userId, userId), eq(s.photos.artworkId, artworkId)))
     .limit(1);
   return !!p;
+}
+
+/* ───────── Photo recognition ───────── */
+
+const ScanBody = z.object({
+  vector: z.array(z.number().finite()).length(EMBEDDING.dims),
+  museumId: z.string().regex(/^Q\d+$/).optional(),
+});
+
+/**
+ * Photo → catalogue matches. The photo itself never reaches the server: the
+ * browser embeds it with the same CLIP model as the catalogue and sends only
+ * the vector. Exact cosine search over the image index; the visited museum's
+ * paintings first when known (pickMatches).
+ */
+export async function matchPhoto(db: DB, userId: string, raw: unknown) {
+  const body = ScanBody.parse(raw);
+  await limit(db, `scan:${userId}`, 60, 600, "That's a lot of scans. Take a breather and try again in a few minutes.");
+  const { image } = await loadIndexes(db);
+  const q = normalize(body.vector);
+  const global = topK(image, q, SCAN.show);
+  let museum: { id: string; score: number }[] | null = null;
+  if (body.museumId) {
+    const ids = new Set(
+      (await db.select({ id: s.artworks.id }).from(s.artworks).where(and(eq(s.artworks.museumId, body.museumId), isNull(s.artworks.ownerId)))).map((r) => r.id),
+    );
+    museum = ids.size ? topK(image, q, SCAN.show, { keep: (id) => ids.has(id) }) : null;
+  }
+  const picked = pickMatches(museum, global);
+  const rows = picked.matches.length
+    ? await db
+        .select({
+          id: s.artworks.id,
+          title: s.artworks.title,
+          year: s.artworks.year,
+          imageFile: s.artworks.imageFile,
+          nudity: s.artworks.nudity,
+          museumId: s.artworks.museumId,
+          artistName: s.artists.name,
+        })
+        .from(s.artworks)
+        .innerJoin(s.artists, eq(s.artists.id, s.artworks.artistId))
+        .where(inArray(s.artworks.id, picked.matches.map((m) => m.id)))
+    : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return {
+    notFound: picked.notFound,
+    fromMuseum: picked.fromMuseum,
+    matches: picked.matches.flatMap((m) => {
+      const r = byId.get(m.id);
+      return r
+        ? [{ id: r.id, title: r.title, year: r.year, artistName: r.artistName, nudity: r.nudity, museumId: r.museumId, thumbUrl: commonsImage(r.imageFile, 240), similarity: Math.round(m.score * 1000) / 1000 }]
+        : [];
+    }),
+  };
+}
+
+/** Text search across the catalogue (the scan's not-found fallback). */
+export async function searchArtworks(db: DB, q: string) {
+  const t = q.trim();
+  if (t.length < 2) return [];
+  const rows = await db
+    .select({ id: s.artworks.id, title: s.artworks.title, year: s.artworks.year, imageFile: s.artworks.imageFile, nudity: s.artworks.nudity, artistName: s.artists.name })
+    .from(s.artworks)
+    .innerJoin(s.artists, eq(s.artists.id, s.artworks.artistId))
+    .where(and(isNull(s.artworks.ownerId), or(ilike(s.artworks.title, like(t)), ilike(s.artists.name, like(t)))))
+    .orderBy(desc(s.artworks.fame), desc(s.artworks.sitelinks))
+    .limit(20);
+  return rows.map((r) => ({ id: r.id, title: r.title, year: r.year, artistName: r.artistName, nudity: r.nudity, thumbUrl: commonsImage(r.imageFile, 240) }));
 }

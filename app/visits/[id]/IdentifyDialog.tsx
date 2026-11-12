@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { VisitPhoto } from "@/lib/server/visits";
 import type { VisitData } from "./VisitClient";
+import { PhotoMatches } from "./PhotoMatches";
 
 type Candidate = { id: string; title: string; year: number | null; artistName: string; nudity: boolean; thumbUrl: string | null };
 
@@ -201,6 +202,16 @@ export function IdentifyDialog({
               </div>
 
               <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:px-5">
+                {!q.trim() && photo.url && (
+                  <PhotoMatches
+                    photoUrl={photo.url}
+                    museumId={visit.museumId}
+                    hideNudity={hideNudity}
+                    busy={busy}
+                    currentId={photo.artwork?.id ?? null}
+                    onPick={(artworkId) => send({ artworkId })}
+                  />
+                )}
                 {results === null ? (
                   <p className="px-2 py-6 text-sm text-ink-2">Loading…</p>
                 ) : results.length === 0 ? (
