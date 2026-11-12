@@ -30,8 +30,16 @@ export default async function TastePage() {
 
   return (
     <section className="py-4">
-      <h1 className="font-serif text-4xl">Your taste</h1>
-      <p className="mt-1 text-ink-2">From {taste.rankedCount} ranked paintings. Tap a row to see the paintings behind it.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-4xl">Your taste</h1>
+          <p className="mt-1 text-ink-2">From {taste.rankedCount} ranked paintings. Tap a row to see the paintings behind it.</p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/taste/map" className="rounded-full bg-ink px-4 py-2 text-sm text-wall">Taste map</Link>
+          <Link href="/recommendations" className="rounded-full border border-line bg-surface px-4 py-2 text-sm hover:border-ink-2">Recommended</Link>
+        </div>
+      </div>
       <div className="mt-8 grid gap-10 md:grid-cols-2">
         <Group title="Artists" rows={taste.artists} empty="No clear favourite artist yet. Rank a few more of the ones you love." />
         <Group title="Movements" rows={taste.movements} empty="No clear favourite movement yet." />
