@@ -21,7 +21,7 @@ jobs:
         uses: pnpm/action-setup@v4
       - if: env.DATABASE_URL != ''
         uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
+        with: { node-version: 24, cache: pnpm }
       - if: env.DATABASE_URL != ''
         run: pnpm install --frozen-lockfile
       - if: env.DATABASE_URL != ''
