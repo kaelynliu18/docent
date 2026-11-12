@@ -7,14 +7,22 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      INGEST_USER_AGENT: ${{ secrets.INGEST_USER_AGENT }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      # Until a DATABASE_URL secret exists there's nowhere to write, so skip rather than ingest into a throwaway DB.
+      - if: env.DATABASE_URL == ''
+        run: echo "No DATABASE_URL secret yet; skipping ingestion." && exit 0
+      - if: env.DATABASE_URL != ''
+        uses: actions/checkout@v4
+      - if: env.DATABASE_URL != ''
+        uses: pnpm/action-setup@v4
+      - if: env.DATABASE_URL != ''
+        uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm ingest
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          INGEST_USER_AGENT: ${{ secrets.INGEST_USER_AGENT }}
+      - if: env.DATABASE_URL != ''
+        run: pnpm install --frozen-lockfile
+      - if: env.DATABASE_URL != ''
+        run: pnpm ingest
