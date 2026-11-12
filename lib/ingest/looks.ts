@@ -45,9 +45,17 @@ export async function thumbUrls(files: string[], width = 120): Promise<Map<strin
 }
 
 /** GET with backoff on 429/503 (Commons throttles bursts). Null after 6 tries. */
-async function politeFetch(url: string, signal?: AbortSignal): Promise<Response | null> {
+export async function politeFetch(url: string, signal?: AbortSignal): Promise<Response | null> {
   for (let attempt = 0; attempt < 6; attempt++) {
-    const res = await fetch(url, { headers: { "User-Agent": UA }, redirect: "follow", signal });
+    let res: Response;
+    try {
+      // A hung connection must not stall a long backfill: give up on this try after 20 s.
+      res = await fetch(url, { headers: { "User-Agent": UA }, redirect: "follow", signal: signal ?? AbortSignal.timeout(20_000) });
+    } catch {
+      if (signal?.aborted) return null;
+      await new Promise((r) => setTimeout(r, 2 ** attempt * 1000));
+      continue;
+    }
     if (res.status !== 429 && res.status !== 503) return res;
     const wait = Number(res.headers.get("retry-after")) || 2 ** attempt;
     await new Promise((r) => setTimeout(r, wait * 1000));

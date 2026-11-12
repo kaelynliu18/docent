@@ -9,6 +9,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  real,
   serial,
   text,
   timestamp,
@@ -187,6 +188,54 @@ export const comparisons = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("comparisons_user_idx").on(t.userId)],
+);
+
+/**
+ * CLIP embeddings per artwork (lib/algo/config.ts EMBEDDING), written only by
+ * `pnpm embed`. One row per artwork, kind and model version, so re-running
+ * skips finished work and a model swap re-embeds cleanly. A failed download
+ * keeps its reason in `error` (vector null) and is retried on the next run.
+ */
+export const artworkEmbeddings = pgTable(
+  "artwork_embeddings",
+  {
+    artworkId: text("artwork_id").notNull().references(() => artworks.id, { onDelete: "cascade" }),
+    /** "image" (the painting) or "text" (title, artist, movement, genre, century). */
+    kind: text("kind").notNull(),
+    model: text("model").notNull(),
+    version: text("version").notNull(),
+    vector: real("vector").array(),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.artworkId, t.kind, t.model, t.version] })],
+);
+
+/** 2D map coordinates and cluster per artwork (`pnpm taste-map`), for one embedding version. */
+export const artworkMap = pgTable(
+  "artwork_map",
+  {
+    artworkId: text("artwork_id").notNull().references(() => artworks.id, { onDelete: "cascade" }),
+    version: text("version").notNull(),
+    x: real("x").notNull(),
+    y: real("y").notNull(),
+    cluster: integer("cluster").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.artworkId, t.version] })],
+);
+
+/** Auto-labelled clusters for the taste map. */
+export const mapClusters = pgTable(
+  "map_clusters",
+  {
+    version: text("version").notNull(),
+    cluster: integer("cluster").notNull(),
+    label: text("label").notNull(),
+    x: real("x").notNull(),
+    y: real("y").notNull(),
+    size: integer("size").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.version, t.cluster] })],
 );
 
 export const skips = pgTable(
