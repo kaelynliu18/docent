@@ -14,6 +14,7 @@ import {
 } from "@/lib/algo/insertion";
 import { TIER_LABEL, type Tier } from "@/lib/algo/types";
 import type { ArtworkCard } from "@/lib/server/data";
+import { equalAreaSizes, type Size } from "@/lib/algo/equalArea";
 import { WallLabel } from "@/components/WallLabel";
 import { preloadImage, useImagesReady } from "@/components/useImagesReady";
 
@@ -331,6 +332,23 @@ function Compare({
     return phase.flip ? [theirs, mine] : [mine, theirs];
   }, [current, opp, phase.flip]);
 
+  // Same screen area for both paintings, proportions untouched, so shape can't sway the choice.
+  const frameRef = useRef<HTMLSpanElement>(null);
+  const [box, setBox] = useState<Size | null>(null);
+  const [natural, setNatural] = useState<Record<string, Size>>({});
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setBox({ w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ready, oppId]);
+  const noteSize = (id: string) => (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const im = e.currentTarget;
+    if (im.naturalWidth) setNatural((n) => (n[id] ? n : { ...n, [id]: { w: im.naturalWidth, h: im.naturalHeight } }));
+  };
+  const sized = box && sides.every((sd) => natural[sd.id]) ? equalAreaSizes(box, sides.map((sd) => natural[sd.id])) : null;
+
   return (
     <div>
       <div className="mb-3 flex items-end justify-between gap-4 sm:mb-6">
@@ -357,12 +375,17 @@ function Compare({
               onClick={() => onChoose(side.ans)}
               className="group flex flex-1 flex-col items-center gap-2 rounded-2xl p-2 transition-colors hover:bg-surface sm:gap-3 sm:p-3"
             >
-              {/* Identical frames for both, so neither gets a size advantage. */}
-              <span className="flex h-[27vh] w-full items-center justify-center min-[600px]:h-[52vh]">
+              {/* Identical frames, and equal painting area inside them. */}
+              <span ref={i === 0 ? frameRef : undefined} className="flex h-[27vh] w-full items-center justify-center min-[600px]:h-[52vh]">
                 <img
                   src={side.img ?? ""}
                   alt={`${side.title} by ${side.artist}`}
-                  className="painting max-h-full max-w-full object-contain"
+                  onLoad={noteSize(side.id)}
+                  ref={(im) => {
+                    if (im?.complete && im.naturalWidth && !natural[side.id]) noteSize(side.id)({ currentTarget: im } as React.SyntheticEvent<HTMLImageElement>);
+                  }}
+                  style={sized ? { width: sized[i].w, height: sized[i].h, opacity: 1 } : { opacity: 0 }}
+                  className="painting max-h-full max-w-full object-contain transition-opacity duration-150"
                 />
               </span>
               <span className="text-center text-sm">

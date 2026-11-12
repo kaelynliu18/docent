@@ -48,3 +48,6 @@ next-env.d.ts
 /playwright-report/
 
 !.env.example
+
+# Claude Code agent worktrees
+.claude/
