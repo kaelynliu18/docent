@@ -65,6 +65,8 @@ export const artworks = pgTable(
     fame: doublePrecision("fame").notNull().default(0),
     museumId: text("museum_id").references(() => museums.id, { onDelete: "set null" }),
     inPool: boolean("in_pool").notNull().default(false),
+    /** Shows nudity: Wikidata depicts (P180) nudity/naked/nude… or genre nude/erotic art. */
+    nudity: boolean("nudity").notNull().default(false),
     /** Set only for a painting a user added by hand (not in Wikidata); never shown to anyone else. */
     ownerId: uuid("owner_id").references(() => users.id, { onDelete: "cascade" }),
     /** Free-text artist for hand-added paintings (their artist_id is the UNKNOWN_ARTIST placeholder). */
@@ -141,6 +143,8 @@ export const users = pgTable("users", {
   /** Lower-cased. Null for guests. */
   email: text("email").unique(),
   googleSub: text("google_sub").unique(),
+  /** Never show nudity in suggestions, museum lists, or the catalogue (own photos still show). */
+  hideNudity: boolean("hide_nudity").notNull().default(false),
   displayName: text("display_name"),
   homeLat: doublePrecision("home_lat"),
   homeLon: doublePrecision("home_lon"),

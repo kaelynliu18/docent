@@ -33,11 +33,9 @@ export async function seedDemoUser(db: DB, ds: Dataset = readSeed()) {
   for (const am of ds.artworkMovements) {
     movesOf.set(am.artworkId, [...(movesOf.get(am.artworkId) ?? []), moveName.get(am.movementId) ?? ""]);
   }
-  // Keep the shared demo safe to show anyone: no nudes or erotic art (by Wikidata genre).
-  const explicit = new Set(ds.genres.filter((g) => /nude|erotic|erotica/i.test(g.name)).map((g) => g.id));
-  const flagged = new Set(ds.artworkGenres.filter((ag) => explicit.has(ag.genreId)).map((ag) => ag.artworkId));
+  // Keep the shared demo safe to show anyone: no nudity (Wikidata depicts or genre).
   const pool = ds.artworks
-    .filter((w) => w.inPool && w.imageFile && w.museumId && !flagged.has(w.id))
+    .filter((w) => w.inPool && w.imageFile && w.museumId && !w.nudity)
     .sort((a, b) => (b.fame ?? 0) - (a.fame ?? 0) || b.sitelinks - a.sitelinks);
   const has = (w: Dataset["artworks"][number], re: RegExp) => (movesOf.get(w.id) ?? []).some((m) => re.test(m));
 

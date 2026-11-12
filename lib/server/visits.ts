@@ -224,8 +224,10 @@ export async function getVisit(db: DB, userId: string | null, visitId: string) {
       : null,
     score: p.artworkId ? (scores.get(p.artworkId) ?? null) : null,
   }));
+  const [u] = await db.select({ hideNudity: s.users.hideNudity }).from(s.users).where(eq(s.users.id, userId));
   return {
     visit: v,
+    hideNudity: u?.hideNudity ?? false,
     photos,
     toIdentify: photos.filter((p) => !p.artwork).length,
     toRank: new Set(photos.filter((p) => p.artwork && p.score == null).map((p) => p.artwork!.id)).size,
@@ -356,6 +358,7 @@ export async function identifyCandidates(
       title: s.artworks.title,
       year: s.artworks.year,
       imageFile: s.artworks.imageFile,
+      nudity: s.artworks.nudity,
       artistName: sql<string>`coalesce(${s.artworks.artistLabel}, ${s.artists.name})`,
     })
     .from(s.artworks)
@@ -363,7 +366,7 @@ export async function identifyCandidates(
     .where(where)
     .orderBy(desc(s.artworks.fame), desc(s.artworks.sitelinks), asc(s.artworks.title))
     .limit(60);
-  return rows.map((r) => ({ id: r.id, title: r.title, year: r.year, artistName: r.artistName, thumbUrl: commonsImage(r.imageFile, 240) }));
+  return rows.map((r) => ({ id: r.id, title: r.title, year: r.year, artistName: r.artistName, nudity: r.nudity, thumbUrl: commonsImage(r.imageFile, 240) }));
 }
 
 /* ───────── What's left to rank ───────── */

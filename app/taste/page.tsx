@@ -1,3 +1,4 @@
+import { HideNudityOffer } from "./HideNudityOffer";
 import Link from "next/link";
 import { getDb } from "@/lib/db/client";
 import { currentUserId } from "@/lib/server/session";
@@ -48,6 +49,7 @@ export default async function TastePage() {
               </li>
             ))}
           </ul>
+          {taste.dislikes.some((d) => d.kind === "content" && d.id === "nudity") && !taste.prefs.hideNudity && <HideNudityOffer />}
         </div>
       )}
     </section>

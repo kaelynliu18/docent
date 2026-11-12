@@ -4,17 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import type { VisitPhoto } from "@/lib/server/visits";
 import type { VisitData } from "./VisitClient";
 
-type Candidate = { id: string; title: string; year: number | null; artistName: string; thumbUrl: string | null };
+type Candidate = { id: string; title: string; year: number | null; artistName: string; nudity: boolean; thumbUrl: string | null };
 
 /** Say which painting a photo shows: pick from the museum's list, search everything, or add it by hand. */
 export function IdentifyDialog({
   visit,
+  hideNudity,
   photo,
   position,
   onClose,
   onDone,
 }: {
   visit: VisitData["visit"];
+  hideNudity: boolean;
   photo: VisitPhoto;
   position: { index: number; total: number };
   onClose: () => void;
@@ -222,7 +224,12 @@ export function IdentifyDialog({
                             className={`flex w-full items-center gap-4 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface ${current ? "bg-surface" : ""}`}
                           >
                             <span className="flex size-14 shrink-0 items-center justify-center">
-                              {c.thumbUrl ? (
+                              {c.thumbUrl && hideNudity && c.nudity ? (
+                                // You asked not to see nudity: the title is still here so you can match your photo.
+                                <span className="grid size-12 place-items-center rounded bg-line text-[10px] leading-tight text-ink-2" title="Contains nudity">
+                                  Nudity
+                                </span>
+                              ) : c.thumbUrl ? (
                                 <img src={c.thumbUrl} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
                               ) : (
                                 <span className="size-12 rounded bg-line" />

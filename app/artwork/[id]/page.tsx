@@ -6,6 +6,7 @@ import { getArtworkPage } from "@/lib/server/data";
 import { TIER_LABEL } from "@/lib/algo/types";
 import { WallLabel } from "@/components/WallLabel";
 import { ScoreBadge } from "@/components/ScoreBadge";
+import { Veiled } from "./Veiled";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,17 @@ export default async function ArtworkPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const d = await getArtworkPage(await getDb(), await currentUserId(), id);
   if (!d) notFound();
-  const { card, mine, prediction, photographed } = d;
+  const { card, mine, prediction, photographed, hideNudity } = d;
+  const veil = hideNudity && card.nudity && !photographed;
 
   return (
     <section className="grid items-center gap-10 py-4 md:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex justify-center">
-        <img src={card.imageUrl ?? ""} alt={`${card.title} by ${card.artistName}`} className="painting max-h-[78vh] w-auto max-w-full object-contain" />
+        {veil ? (
+          <Veiled src={card.imageUrl ?? ""} alt={`${card.title} by ${card.artistName}`} />
+        ) : (
+          <img src={card.imageUrl ?? ""} alt={`${card.title} by ${card.artistName}`} className="painting max-h-[78vh] w-auto max-w-full object-contain" />
+        )}
       </div>
       <div className="flex flex-col gap-6">
         <WallLabel art={card} />

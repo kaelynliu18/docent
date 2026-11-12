@@ -134,5 +134,5 @@ export function evaluatePredictors(
   return totals;
 }
 
-export const BASELINE_WEIGHTS = { artist: 1, movement: 0.5, genre: 0, period: 0 };
+export const BASELINE_WEIGHTS = { artist: 1, movement: 0.5, genre: 0, period: 0, content: 0 };
 export { PREDICT_WEIGHTS };

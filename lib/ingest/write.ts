@@ -49,9 +49,9 @@ export async function writeDataset(db: DB, ds: Dataset): Promise<number> {
     await upsert(
       tx,
       s.artworks,
-      ds.artworks.map((w) => ({ ...w, fame: w.fame ?? 0, updatedAt: new Date() })),
+      ds.artworks.map((w) => ({ ...w, fame: w.fame ?? 0, nudity: w.nudity ?? false, updatedAt: new Date() })),
       s.artworks.id,
-      ["title", "artistId", "year", "imageFile", "sitelinks", "fame", "museumId", "inPool", "updatedAt"],
+      ["title", "artistId", "year", "imageFile", "sitelinks", "fame", "nudity", "museumId", "inPool", "updatedAt"],
     );
 
     // Link tables and holdings are fully derived: replace them.

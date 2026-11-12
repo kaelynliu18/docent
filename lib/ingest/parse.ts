@@ -128,6 +128,16 @@ export function parseArtworkDetails(bindings: Binding[]): ArtworkDetails {
   return { movements, genres, enwiki, museum };
 }
 
+/** Ids of paintings returned by nudityQuery. */
+export function parseNudity(bindings: Binding[]): Set<string> {
+  const out = new Set<string>();
+  for (const b of bindings) {
+    const id = qid(b.p?.value);
+    if (id) out.add(id);
+  }
+  return out;
+}
+
 export function parseArtists(bindings: Binding[]): {
   artists: ArtistRow[];
   movements: Map<string, { id: string; name: string }[]>;

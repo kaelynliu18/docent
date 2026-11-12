@@ -5,9 +5,12 @@ import {
   holdingsQuery,
   museumsQuery,
   namedWorksQuery,
+  NUDITY_GENRE_RE,
+  nudityQuery,
   poolBandQuery,
 } from "./queries";
 import {
+  parseNudity,
   parseArtists,
   parseArtworkDetails,
   parseHoldings,
@@ -107,6 +110,13 @@ export async function fetchDataset(sparql: SparqlClient, opts: FetchOptions = {}
       ),
     (d) => d.genres.size,
   );
+  /* Nudity: what the painting depicts (P180), plus nude/erotic genres below. */
+  const depictsNudity = await timed(
+    "nudity",
+    async () => parseNudity(await batched(allIds, 300, (ids) => sparql("nudity", nudityQuery(ids)))),
+    (s) => s.size,
+  );
+
   const poolIds = new Set(pool.map((p) => p.id));
   const poolMuseum = new Map([...details.museum].filter(([id]) => poolIds.has(id)));
 
@@ -166,12 +176,18 @@ export async function fetchDataset(sparql: SparqlClient, opts: FetchOptions = {}
     }
   }
 
+  const nudeGenre = new Set(
+    [...details.genres].filter(([, gs]) => gs.some((g) => NUDITY_GENRE_RE.test(g.name))).map(([id]) => id),
+  );
+  const isNude = (id: string) => depictsNudity.has(id) || nudeGenre.has(id);
+
   const artworks = new Map<string, ArtworkRow>();
-  for (const w of named) artworks.set(w.id, w);
+  for (const w of named) artworks.set(w.id, { ...w, nudity: isNude(w.id) });
   for (const p of pool) {
     artworks.set(p.id, {
       ...p,
       fame: fame.get(p.id) ?? 0,
+      nudity: isNude(p.id),
       museumId: poolMuseum.get(p.id) ?? artworks.get(p.id)?.museumId ?? null,
     });
   }

@@ -27,6 +27,8 @@ export type ArtworkRow = {
   inPool: boolean;
   /** 0–1; set by the fame pass (pool paintings only). */
   fame?: number;
+  /** Depicts nudity, or genre nude/erotic art. */
+  nudity?: boolean;
 };
 
 /** Everything ingestion produces; also the shape of fixtures/seed.json. */

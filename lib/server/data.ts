@@ -28,6 +28,8 @@ export type ArtworkCard = {
   museum: { id: string; name: string; city: string | null; country: string | null } | null;
   /** Hand-added by the user (not in Wikidata). */
   custom: boolean;
+  /** Shows nudity (Wikidata depicts or genre). */
+  nudity: boolean;
 };
 
 export type RankedItem = ArtworkCard & { tier: Tier; score: number; rank: number; tierIndex: number };
@@ -49,6 +51,7 @@ async function loadCards(db: DB, ids: string[], userId: string | null = null): P
       artistId: s.artworks.artistId,
       artistName: sql<string>`coalesce(${s.artworks.artistLabel}, ${s.artists.name})`,
       ownerId: s.artworks.ownerId,
+      nudity: s.artworks.nudity,
       museumId: s.museums.id,
       museumName: s.museums.name,
       city: s.museums.city,
@@ -93,6 +96,7 @@ async function loadCards(db: DB, ids: string[], userId: string | null = null): P
       imageUrl: mine?.url ?? commonsImage(r.imageFile, 1000),
       thumbUrl: mine?.thumbUrl ?? commonsImage(r.imageFile, 240),
       custom: !!r.ownerId,
+      nudity: r.nudity,
       artistId: r.artistId,
       artistName: r.artistName,
       movements: (mv.get(r.id) ?? []).sort((a, b) => (a.source === b.source ? 0 : a.source === "artwork" ? -1 : 1)),
@@ -108,7 +112,22 @@ export const featuresOf = (c: ArtworkCard): ArtworkFeatures => ({
   movementIds: c.movements.map((m) => m.id),
   genreIds: c.genres.map((g) => g.id),
   year: c.year,
+  tags: c.nudity ? ["nudity"] : [],
 });
+
+/* ───────── Preferences ───────── */
+
+export async function getPrefs(db: DB, userId: string | null) {
+  if (!userId) return { hideNudity: false };
+  const [u] = await db.select({ hideNudity: s.users.hideNudity }).from(s.users).where(eq(s.users.id, userId));
+  return { hideNudity: u?.hideNudity ?? false };
+}
+
+export async function setPrefs(db: DB, userId: string, raw: unknown) {
+  const body = z.object({ hideNudity: z.boolean() }).parse(raw);
+  await db.update(s.users).set({ hideNudity: body.hideNudity }).where(eq(s.users.id, userId));
+  return body;
+}
 
 export async function getArtworkCard(db: DB, id: string, userId: string | null = null) {
   return (await loadCards(db, [id], userId)).get(id) ?? null;
@@ -255,6 +274,7 @@ async function rankedForTaste(db: DB, userId: string | null) {
         movements: r.movements,
         genres: r.genres,
         year: r.year,
+        tags: r.nudity ? ["nudity"] : [],
       })),
     ),
   };
@@ -282,8 +302,9 @@ export async function getTasteProfile(db: DB, userId: string | null) {
     ...topNegative(taste.artists, 3).filter((a) => a.count >= 2).map((a) => ({ ...a, kind: "artist" as const })),
     ...topNegative(taste.movements, 3).filter((a) => a.count >= 2).map((a) => ({ ...a, kind: "movement" as const })),
     ...topNegative(taste.genres, 3).filter((a) => a.count >= 2).map((a) => ({ ...a, kind: "genre" as const })),
+    ...topNegative(taste.content, 2).filter((a) => a.count >= 2).map((a) => ({ ...a, kind: "content" as const })),
   ].sort((a, b) => a.affinity - b.affinity).slice(0, 5);
-  return { artists, movements, genres, periods, dislikes, rankedCount: all.length };
+  return { artists, movements, genres, periods, dislikes, rankedCount: all.length, prefs: await getPrefs(db, userId) };
 }
 
 /* ───────── What's left to rank ───────── */
@@ -366,7 +387,8 @@ export async function getMuseumMatches(
   // masterpiece term (specific works there you're predicted to love).
   const shortlist = matchMuseums(inputs, taste, matchOpts).filter((r) => r.raw > 0).slice(0, limit * 3);
   const ranked = new Set(all.map((r) => r.id));
-  const works = await predictedWorksAt(db, shortlist.map((r) => r.id), taste, ranked);
+  const { hideNudity } = await getPrefs(db, userId);
+  const works = await predictedWorksAt(db, shortlist.map((r) => r.id), taste, ranked, true, hideNudity);
   const extraTerms = new Map<string, MatchTerm[]>();
   for (const [museumId, ws] of works) {
     const t = masterpieceTerm(ws);
@@ -399,6 +421,7 @@ async function predictedWorksAt(
   taste: ReturnType<typeof buildTaste>,
   exclude: Set<string>,
   onlyLiked = true,
+  hideNudity = false,
 ) {
   const out = new Map<string, MuseumMatch["topWorks"]>();
   if (!museumIds.length) return out;
@@ -417,7 +440,11 @@ async function predictedWorksAt(
       : undefined,
   ].filter(Boolean);
   if (onlyLiked && !touches.length) return out;
-  const where = and(inArray(s.artworks.museumId, museumIds), onlyLiked ? or(...touches) : undefined);
+  const where = and(
+    inArray(s.artworks.museumId, museumIds),
+    onlyLiked ? or(...touches) : undefined,
+    hideNudity ? eq(s.artworks.nudity, false) : undefined,
+  );
 
   // Lean feature load in one query: movement and genre ids come back as arrays.
   const rows = await db
@@ -429,6 +456,7 @@ async function predictedWorksAt(
       museumId: s.artworks.museumId,
       artistId: s.artworks.artistId,
       artistName: s.artists.name,
+      nudity: s.artworks.nudity,
       movementIds: sql<string[] | null>`(select array_agg(am.movement_id) from artwork_movements am where am.artwork_id = ${s.artworks.id})`,
       genreIds: sql<string[] | null>`(select array_agg(ag.genre_id) from artwork_genres ag where ag.artwork_id = ${s.artworks.id})`,
     })
@@ -441,7 +469,7 @@ async function predictedWorksAt(
   for (const r of rows) {
     if (exclude.has(r.id) || !r.museumId) continue;
     const p = predictScore(
-      { artistId: r.artistId, movementIds: moves.get(r.id) ?? [], genreIds: gens.get(r.id) ?? [], year: r.year },
+      { artistId: r.artistId, movementIds: moves.get(r.id) ?? [], genreIds: gens.get(r.id) ?? [], year: r.year, tags: r.nudity ? ["nudity"] : [] },
       taste,
     );
     const list = out.get(r.museumId) ?? [];
@@ -464,7 +492,8 @@ export async function getMuseumDetail(db: DB, userId: string | null, id: string)
   if (!museum) return null;
   const { all, taste } = await rankedForTaste(db, userId);
   const rankedScores = new Map(all.filter((r) => r.museum?.id === id).map((r) => [r.id, r.score]));
-  const works = (await predictedWorksAt(db, [id], taste, new Set(), false)).get(id) ?? [];
+  const { hideNudity } = await getPrefs(db, userId);
+  const works = (await predictedWorksAt(db, [id], taste, new Set(), false, hideNudity)).get(id) ?? [];
   const holdings = await db
     .select({ artistId: s.museumArtistHoldings.artistId, name: s.artists.name, count: s.museumArtistHoldings.paintingCount })
     .from(s.museumArtistHoldings)
@@ -513,6 +542,7 @@ export async function getArtworkPage(db: DB, userId: string | null, id: string) 
   return {
     card,
     photographed: userId ? await hasPhotoOf(db, userId, id) : false,
+    hideNudity: (await getPrefs(db, userId)).hideNudity,
     mine: mine ? { score: mine.score, tier: mine.tier, rank: mine.rank } : null,
     prediction: prediction ? { score: roundScore(prediction.score), confidence: prediction.confidence } : null,
   };
@@ -527,9 +557,8 @@ export async function getHeroPaintings(db: DB, n = 8) {
       and(
         eq(s.artworks.inPool, true),
         sql`${s.artworks.imageFile} is not null`,
-        // The landing page is the first thing anyone sees: no nudes or erotic art.
-        sql`not exists (select 1 from artwork_genres ag join genres g on g.id = ag.genre_id
-          where ag.artwork_id = ${s.artworks.id} and g.name ~* '(nude|erotic)')`,
+        // The landing page is the first thing anyone sees: no nudity.
+        eq(s.artworks.nudity, false),
       ),
     )
     .orderBy(desc(s.artworks.fame), desc(s.artworks.sitelinks))

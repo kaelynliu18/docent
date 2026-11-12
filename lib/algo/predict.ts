@@ -4,7 +4,7 @@ import type { ArtworkFeatures, TasteProfile } from "./types";
 export type Prediction = { score: number; confidence: "low" | "normal" };
 
 /** Weight of each dimension inside the tanh. Artist is the strongest signal. */
-export const PREDICT_WEIGHTS = { artist: 1, movement: 0.5, genre: 0.35, period: 0.2 };
+export const PREDICT_WEIGHTS = { artist: 1, movement: 0.5, genre: 0.35, period: 0.2, content: 0.6 };
 /**
  * Scales z before tanh. With four dimensions a strong match reaches z≈3, which
  * would pin every good prediction at 10.0; 0.6 keeps them distinguishable
@@ -16,7 +16,9 @@ const mean = (ids: string[], m: TasteProfile["movements"]) =>
   ids.length ? ids.reduce((s, id) => s + (m.get(id)?.affinity ?? 0), 0) / ids.length : 0;
 
 /**
- * 6.4, extended: ŝ = 5 + 5·tanh(0.6·(A_k + 0.5·M̄ + 0.35·Ḡ + 0.2·P)).
+ * 6.4, extended: ŝ = 5 + 5·tanh(0.6·(A_k + 0.5·M̄ + 0.35·Ḡ + 0.2·P + 0.6·ΣC)).
+ * C: content tags the painting carries (e.g. nudity). A clear dislike there pulls
+ * every such painting down, whatever its genre or artist.
  * Unknown dimensions contribute 0; tanh keeps it inside 0–10.
  * "low" confidence when neither the artist, a movement nor a genre has been ranked
  * (a century alone is too weak to call it a real prediction).
@@ -34,7 +36,8 @@ export function predictScore(
     weights.artist * (a?.affinity ?? 0) +
     weights.movement * mean(art.movementIds, taste.movements) +
     weights.genre * mean(genreIds, taste.genres) +
-    weights.period * (p?.affinity ?? 0);
+    weights.period * (p?.affinity ?? 0) +
+    weights.content * (art.tags ?? []).reduce((s, t) => s + (taste.content.get(t)?.affinity ?? 0), 0);
   const knows =
     !!a || art.movementIds.some((id) => taste.movements.has(id)) || genreIds.some((id) => taste.genres.has(id));
   return { score: 5 + 5 * Math.tanh(PREDICT_SCALE * z), confidence: knows ? "normal" : "low" };

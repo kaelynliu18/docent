@@ -8,11 +8,13 @@ type Account = { id: string; email: string | null; hasGoogle: boolean; isDemo: b
 
 export function AccountClient({
   account,
+  prefs,
   can,
   vapidKey,
   notice,
 }: {
   account: Account;
+  prefs: { hideNudity: boolean };
   can: { email: boolean; google: boolean; push: boolean };
   vapidKey: string | null;
   notice: string | null;
@@ -50,6 +52,8 @@ export function AccountClient({
       )}
 
       {!signedIn && !account?.isDemo && <SignIn can={can} onDone={() => switched()} />}
+
+      {!account?.isDemo && <ContentPrefs initial={prefs.hideNudity} onChange={() => switched()} />}
 
       {account && !account.isDemo && can.push && vapidKey && <Notifications vapidKey={vapidKey} />}
 
@@ -210,6 +214,52 @@ function SignIn({ can, onDone }: { can: { email: boolean; google: boolean }; onD
   );
 }
 
+function Switch({ on, label, onClick, disabled }: { on: boolean; label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-ink" : "bg-line"}`}
+    >
+      <span className={`absolute top-0.5 size-6 rounded-full bg-wall shadow transition-[left] ${on ? "left-[22px]" : "left-0.5"}`} />
+    </button>
+  );
+}
+
+/** A rule, not a learned preference: once on, nudity never appears in suggestions or museum lists. */
+function ContentPrefs({ initial, onChange }: { initial: boolean; onChange: () => void }) {
+  const [on, setOn] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const flip = async () => {
+    setBusy(true);
+    const r = await fetch("/api/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hideNudity: !on }),
+    });
+    setBusy(false);
+    if (r.ok) {
+      setOn(!on);
+      onChange();
+    }
+  };
+  return (
+    <div className="mt-10 flex items-start justify-between gap-6 rounded-2xl border border-line bg-surface p-5">
+      <div>
+        <p className="font-medium">Hide nudity</p>
+        <p className="mt-1 text-sm text-ink-2">
+          Keeps paintings with nudity out of museum suggestions and lists, in any genre. Photos you took yourself still show.
+        </p>
+      </div>
+      <Switch on={on} label="Hide nudity" onClick={flip} disabled={busy} />
+    </div>
+  );
+}
+
 const b64ToBytes = (b64: string) => {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -264,18 +314,7 @@ function Notifications({ vapidKey }: { vapidKey: string }) {
         <p className="font-medium">Reminders</p>
         <p className="mt-1 text-sm text-ink-2">{text[state]}</p>
       </div>
-      {(state === "off" || state === "on") && (
-        <button
-          type="button"
-          role="switch"
-          aria-checked={state === "on"}
-          aria-label="Reminders"
-          onClick={state === "on" ? turnOff : turnOn}
-          className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${state === "on" ? "bg-ink" : "bg-line"}`}
-        >
-          <span className={`absolute top-0.5 size-6 rounded-full bg-wall shadow transition-[left] ${state === "on" ? "left-[22px]" : "left-0.5"}`} />
-        </button>
-      )}
+      {(state === "off" || state === "on") && <Switch on={state === "on"} label="Reminders" onClick={state === "on" ? turnOff : turnOn} />}
     </div>
   );
 }

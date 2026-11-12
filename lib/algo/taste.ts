@@ -1,4 +1,4 @@
-import { EXCLUDED_ARTIST_IDS, type Affinity, type RankedForTaste, type TasteProfile } from "./types";
+import { CONTENT_TAGS, EXCLUDED_ARTIST_IDS, type Affinity, type RankedForTaste, type TasteProfile } from "./types";
 
 /** 10 → +1, 5 → 0, 0 → −1 */
 export function signedWeight(score: number): number {
@@ -39,8 +39,11 @@ export function buildTaste(ranked: RankedForTaste[]): TasteProfile {
   const movements: Acc = new Map();
   const genres: Acc = new Map();
   const periods: Acc = new Map();
+  const content: Acc = new Map();
 
   for (const r of ranked) {
+    // Content counts even for unknown artists: "no nudity" doesn't depend on who painted it.
+    for (const t of new Set(r.tags ?? [])) if (CONTENT_TAGS[t]) add(content, t, CONTENT_TAGS[t], signedWeight(r.score));
     if (EXCLUDED_ARTIST_IDS.has(r.artistId)) continue;
     const w = signedWeight(r.score);
     add(artists, r.artistId, r.artistName, w);
@@ -58,7 +61,7 @@ export function buildTaste(ranked: RankedForTaste[]): TasteProfile {
     const p = periodOf(r.year);
     if (p) add(periods, p.id, p.name, w);
   }
-  return { artists: finish(artists), movements: finish(movements), genres: finish(genres), periods: finish(periods) };
+  return { artists: finish(artists), movements: finish(movements), genres: finish(genres), periods: finish(periods), content: finish(content) };
 }
 
 /** Top positive entries, strongest first. */
@@ -83,5 +86,5 @@ export function topAbsolute(m: Map<string, Affinity>, k: number): Affinity[] {
 }
 
 export function emptyTaste(): TasteProfile {
-  return { artists: new Map(), movements: new Map(), genres: new Map(), periods: new Map() };
+  return { artists: new Map(), movements: new Map(), genres: new Map(), periods: new Map(), content: new Map() };
 }

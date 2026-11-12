@@ -13,6 +13,7 @@ import { IdentifyDialog } from "./IdentifyDialog";
 export type VisitData = {
   visit: { id: string; visitedOn: string; museumId: string; museumName: string; city: string | null; country: string | null };
   photos: VisitPhoto[];
+  hideNudity: boolean;
   toIdentify: number;
   toRank: number;
 };
@@ -267,6 +268,7 @@ export function VisitClient({ initial }: { initial: VisitData }) {
         <IdentifyDialog
           key={identifying}
           visit={visit}
+          hideNudity={data.hideNudity}
           photo={photos.find((p) => p.id === identifying)!}
           position={{ index: photos.findIndex((p) => p.id === identifying), total: photos.length }}
           onClose={() => setIdentifying(null)}

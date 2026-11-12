@@ -18,8 +18,8 @@ const items: EvalItem[] = ds.artworks
 const predictors = {
   "spec (artist + movement)": BASELINE_WEIGHTS,
   "new (+ genre + era)": PREDICT_WEIGHTS,
-  "genre-heavy": { artist: 1, movement: 0.5, genre: 0.7, period: 0.3 },
-  "artist-only": { artist: 1, movement: 0, genre: 0, period: 0 },
+  "genre-heavy": { artist: 1, movement: 0.5, genre: 0.7, period: 0.3, content: 0.6 },
+  "artist-only": { artist: 1, movement: 0, genre: 0, period: 0, content: 0 },
 };
 const truths = {
   default: DEFAULT_TRUTH,

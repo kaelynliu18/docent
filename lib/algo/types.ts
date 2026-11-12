@@ -32,7 +32,12 @@ export type RankedForTaste = {
   movements: MovementRef[];
   genres?: GenreRef[];
   year?: number | null;
+  /** Content tags that cut across genres, e.g. "nudity". */
+  tags?: string[];
 };
+
+/** Content tags the app knows how to name. */
+export const CONTENT_TAGS: Record<string, string> = { nudity: "Nudity" };
 
 export type Affinity = { id: string; name: string; affinity: number; count: number };
 
@@ -43,6 +48,8 @@ export type TasteProfile = {
   genres: Map<string, Affinity>;
   /** Centuries, keyed "C19". Derived from the year. */
   periods: Map<string, Affinity>;
+  /** Content tags (CONTENT_TAGS), learned only from paintings that carry them. */
+  content: Map<string, Affinity>;
 };
 
 /** What the predictor and queue know about a painting. */
@@ -51,4 +58,5 @@ export type ArtworkFeatures = {
   movementIds: string[];
   genreIds?: string[];
   year?: number | null;
+  tags?: string[];
 };

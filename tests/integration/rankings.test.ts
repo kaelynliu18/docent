@@ -9,12 +9,14 @@ import {
   deleteRanking,
   getMuseumMatches,
   getHeroPaintings,
+  getMuseumDetail,
   getPending,
   getRankedList,
   getTasteProfile,
   getTierForSearch,
   insertRanking,
   mergeGuestInto,
+  setPrefs,
 } from "@/lib/server/data";
 import { ApiError } from "@/lib/server/errors";
 import { users } from "@/lib/db/schema";
@@ -26,6 +28,7 @@ import { answer, currentOpponent, slotNeighbours, startInsertion } from "@/lib/a
 let db: DB;
 let pool: string[];
 let museumOf: Map<string, string>;
+let nudeIds: Set<string>;
 
 async function newUser() {
   const [u] = await db.insert(users).values({}).returning();
@@ -58,6 +61,7 @@ beforeAll(async () => {
   const usable = ds.artworks.filter((w) => w.inPool && w.imageFile && w.museumId);
   pool = usable.map((w) => w.id);
   museumOf = new Map(usable.map((w) => [w.id, w.museumId!]));
+  nudeIds = new Set(ds.artworks.filter((w) => w.nudity).map((w) => w.id));
 }, 60_000);
 
 describe("POST /api/rankings logic", () => {
@@ -263,6 +267,23 @@ describe("visits and photos", () => {
       ...(await getHeroPaintings(db, 8)),
     ];
     expect(shown.length).toBeGreaterThan(30);
-    for (const w of shown) for (const g of w.genres) expect(g.name).not.toMatch(/nude|erotic/i);
+    for (const w of shown) {
+      expect(w.nudity).toBe(false);
+      for (const g of w.genres) expect(g.name).not.toMatch(/nude|erotic/i);
+    }
+  });
+
+  it("hide nudity keeps nudes out of museum lists and suggestions", async () => {
+    const u = await newUser();
+    const ds = readSeed();
+    const nude = ds.artworks.find((w) => w.inPool && w.nudity && w.museumId)!;
+    await rank(u, nude.id, "loved", () => true);
+    const before = await getMuseumDetail(db, u, nude.museumId!);
+    expect(before!.works.some((w) => nudeIds.has(w.id))).toBe(true);
+    await setPrefs(db, u, { hideNudity: true });
+    const after = await getMuseumDetail(db, u, nude.museumId!);
+    expect(after!.works.length).toBeGreaterThan(0);
+    expect(after!.works.some((w) => nudeIds.has(w.id))).toBe(false);
+    expect((await getTasteProfile(db, u)).prefs.hideNudity).toBe(true);
   });
 });

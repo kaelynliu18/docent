@@ -16,6 +16,23 @@ export function poolBandQuery(min: number, max: number | null): string {
 }`;
 }
 
+/**
+ * Paintings that depict nudity. Wikidata models it as many items ("nudity",
+ * "naked woman", "clothed male, naked female", "male nudity"…), so match the
+ * English label rather than a fixed list. "breastfeeding" is deliberately not matched.
+ */
+export const NUDITY_LABEL_RE = "nud|naked|^breasts?$|vulva|penis|genital";
+export function nudityQuery(ids: string[]): string {
+  return `SELECT DISTINCT ?p WHERE {
+  ${values("p", ids)}
+  ?p wdt:P180 ?d . ?d rdfs:label ?dl . FILTER(LANG(?dl) = "en")
+  FILTER(REGEX(?dl, "${NUDITY_LABEL_RE}", "i"))
+}`;
+}
+
+/** Genre names that also mean nudity. */
+export const NUDITY_GENRE_RE = /\b(nude|erotic)/i;
+
 /** Movements, genres, collections (with end-time and coordinate flags) and enwiki article for paintings. */
 export function artworkDetailsQuery(ids: string[]): string {
   return `SELECT ?p ?move ?moveLabel ?genre ?genreLabel ?coll ?end ?coord ?article WHERE {
