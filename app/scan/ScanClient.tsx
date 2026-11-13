@@ -82,7 +82,7 @@ export function ScanClient() {
             {state.kind === "error" && <p className="text-ink-2">Couldn&apos;t read that photo. Try another.</p>}
             {state.kind === "done" && (
               <>
-                <p className="text-sm font-semibold tracking-wide text-ink-2 uppercase">{state.notFound ? "No confident match" : "Is it one of these?"}</p>
+                <p className="text-sm font-semibold tracking-wide text-ink-2 uppercase">{state.notFound ? "Not sure. Is it one of these?" : "Best matches"}</p>
                 <ul className="mt-2 flex flex-col gap-1">
                   {state.matches.map((m) => (
                     <li key={m.id}>

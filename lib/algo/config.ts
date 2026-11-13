@@ -56,11 +56,14 @@ export const SCAN = {
   /** The visited museum's best match must reach this similarity, else search the whole catalogue. */
   museumMin: 0.62,
   /**
-   * "Not found" when the best match isn't clearly ahead of the runner-up (top-1 − top-2
-   * similarity below this). Separated catalogued vs missing paintings better than the raw
-   * score in pnpm eval:scan (80% vs 71% balanced accuracy).
+   * Confident match only if the best catalogue-wide match is very close (score ≥ foundScore)
+   * or clearly ahead of the runner-up across the whole catalogue (gap ≥ foundGap). Otherwise
+   * "not a confident match". Chosen by grid search in pnpm eval:scan (docs/eval-results.md).
+   * The gap is always measured catalogue-wide: inside one museum's short list a wrong
+   * painting can look unique just because there are few candidates.
    */
-  notFoundMargin: 0.016,
+  foundScore: 0.9,
+  foundGap: 0.04,
 };
 
 /** Which embedding a precomputed map belongs to (artwork_map.version). */

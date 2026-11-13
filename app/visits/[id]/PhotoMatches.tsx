@@ -84,7 +84,7 @@ export function PhotoMatches({
   return (
     <div className="mb-3">
       <p className="px-2 pb-1 text-xs font-semibold tracking-wide text-ink-2 uppercase">
-        {state.notFound ? "Not a confident match. Closest we have:" : "From your photo"}
+        {state.notFound ? "Not sure. Is it one of these?" : "From your photo: best matches"}
       </p>
       <ul>
         {state.matches.map((m) => (

@@ -21,7 +21,7 @@ Commons thumbnails ──pnpm embed──▶ artwork_embeddings (image + text, p
 - **Storage:** a flat `real[]` table keyed by artwork + kind + model + version, not pgvector. Local dev runs embedded PGlite, which doesn't ship pgvector; an exact scan of 9,153 × 1,024 dims takes ~9 ms, well inside the 100 ms target. pgvector is a drop-in if the catalogue grows 10×.
 - **Hybrid similarity in one index:** image and text vectors are concatenated with weights √0.7 and √0.3, so one dot product equals 0.7·cos(image) + 0.3·cos(text).
 - **Heavy work never runs in a request:** `pnpm embed`, `pnpm taste-map` and the evals are scripts. The backfill is idempotent and resumable (a second run reports "nothing to do"), rate-limits Commons, times out hung downloads and records failures. Changing `EMBEDDING.version` re-embeds cleanly.
-- **One config file:** `lib/algo/config.ts` (model, k, MMR λ, blend weights, popularity prior, map seed and clusters, scan crop, museum threshold and not-found margin).
+- **One config file:** `lib/algo/config.ts` (model, k, MMR λ, blend weights, popularity prior, map seed and clusters, scan crop, museum threshold and confidence rule).
 
 ## Recommendations
 
@@ -76,11 +76,15 @@ The photo is embedded **in the browser** with the same CLIP model, and only the 
 
 In the browser (headless Chromium), the first scan took 5.9 s including the model download and the next 0.2 s; the framed, tilted Starry Night photo above came back top-1 at 94%, with the runner-up at 78%.
 
-**"Not found" is the weak spot.** CLIP finds most paintings fairly similar to each other, so a high top score doesn't mean "it's in the catalogue" (71% balanced accuracy at best). Whether the best match stands clearly ahead of the runner-up separates the cases better (80%), so the app flags "not a confident match" when that gap is under 0.016. It still shows the closest five, and offers text search or adding the painting by hand.
+**"Not found" is the weak spot, and it failed on a real photo.** A real photo of Picasso's *Girl with a Mandolin* (MoMA) isn't in the catalogue, yet the app showed Malevich's *Samovar* as a confident match. Two reasons. The not-found check measured the gap between the top two matches inside MoMA's 52 listed paintings, and with so few candidates a wrong match looks unique (gap 0.029). And the 0.016 cut-off, tuned on synthetic photos, was too lenient for a real one.
 
-On the synthetic set, that rule shows 77% of catalogued paintings as found and flags 84% of missing ones.
+The fix:
+- **Measure confidence across the whole catalogue,** never one museum's short list.
+- **Call a match found only if** its score is ≥ 0.90 or it leads the runner-up by ≥ 0.04.
 
-**Real photos: pending.** The one real photo so far (Picasso, *Girl with a Mandolin*) isn't in the catalogue. Its top score was a high 0.79, but its gap was only 0.012, so it's correctly flagged "not a confident match". Put 30–50 photos of catalogue paintings in `eval/photos/<Wikidata id>.jpg` and run `pnpm eval:scan` for the headline number.
+The eval's best-scoring pair (0.86 / 0.016, 83% balanced accuracy) would still have passed the real failure, so the app uses the stricter pair. It flags 94% of missing paintings, including the real Picasso, but labels only 49% of correct matches as confident. Wrongly saying "this is *Samovar*" is the costly mistake. Wrongly saying "not sure" is cheap, because the top 5 are always shown ("Not sure. Is it one of these?") and contain the right painting 96–99% of the time.
+
+**Real photos: pending.** Both real photos so far are of the Picasso, which isn't in the catalogue; both are now flagged "not sure". Put 30–50 photos of catalogue paintings in `eval/photos/<Wikidata id>.jpg` and run `pnpm eval:scan` for the headline number.
 
 ## Limits and next steps
 

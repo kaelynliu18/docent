@@ -117,19 +117,6 @@ async function main() {
     if (++done % 25 === 0) console.log(`${done}/${sampleSet.length}`);
   }
 
-  // Threshold: best balanced accuracy between "in catalogue" and "not in catalogue", for each signal.
-  const bestCut = (p: number[], n: number[], lo: number, hi: number, step: number) => {
-    let b = { t: lo, acc: 0 };
-    for (let t = lo; t <= hi; t += step) {
-      const tpr = p.filter((x) => x >= t).length / (p.length || 1);
-      const tnr = n.filter((x) => x < t).length / (n.length || 1);
-      if ((tpr + tnr) / 2 > b.acc) b = { t: Math.round(t * 1000) / 1000, acc: (tpr + tnr) / 2 };
-    }
-    return b;
-  };
-  const best = bestCut(pos, neg, 0.5, 0.95, 0.01);
-  const bestMargin = bestCut(posM, negM, 0, 0.2, 0.002);
-  const mAt = (t: number) => ({ tpr: posM.filter((x) => x >= t).length / (posM.length || 1), tnr: negM.filter((x) => x < t).length / (negM.length || 1) });
   timings.sort((a, b) => a - b);
   const p50 = timings[Math.floor(timings.length / 2)] ?? 0;
   const p95 = timings[Math.floor(timings.length * 0.95)] ?? 0;
@@ -160,19 +147,37 @@ async function main() {
     }
   }
 
+  // Confidence rule (as in pickMatches): found if top ≥ S or catalogue-wide gap ≥ M.
+  // Grid over (S, M) for the best balanced accuracy; real not-in-catalogue photos count as negatives.
+  const negs = [...neg.map((t, i) => ({ t, g: negM[i] })), ...real.filter((r) => !r.id).map((r) => ({ t: r.top, g: r.gap }))];
+  const poss = pos.map((t, i) => ({ t, g: posM[i] }));
+  const rate = (S: number, M: number) => {
+    const found = (x: { t: number; g: number }) => x.t >= S || x.g >= M;
+    const tpr = poss.filter(found).length / (poss.length || 1);
+    const tnr = negs.filter((x) => !found(x)).length / (negs.length || 1);
+    return { tpr, tnr, acc: (tpr + tnr) / 2 };
+  };
+  let best = { S: SCAN.foundScore, M: SCAN.foundGap, ...rate(SCAN.foundScore, SCAN.foundGap) };
+  for (let S = 0.8; S <= 1.0001; S += 0.01)
+    for (let M = 0; M <= 0.12; M += 0.002) {
+      const r = rate(S, M);
+      if (r.acc > best.acc + 1e-9 || (Math.abs(r.acc - best.acc) < 1e-9 && r.tnr > best.tnr)) best = { S: Math.round(S * 100) / 100, M: Math.round(M * 1000) / 1000, ...r };
+    }
+  const cur = rate(SCAN.foundScore, SCAN.foundGap);
+  const scoreOnly = (() => { let b = 0; for (let S = 0.5; S <= 1; S += 0.01) b = Math.max(b, rate(S, 9).acc); return b; })();
+  const gapOnly = (() => { let b = 0; for (let M = 0; M <= 0.12; M += 0.002) b = Math.max(b, rate(9, M).acc); return b; })();
   const pct = (a: number, n: number) => (n ? `${((a / n) * 100).toFixed(0)}%` : "–");
   let md = `## Photo recognition\n\nModel ${EMBEDDING.model} (${EMBEDDING.version}), exact cosine search over ${image.ids.length} catalogue images. Command: \`pnpm eval:scan\` (SCAN_EVAL_N=${N}).\n\n### Synthetic photos\n\n${N} catalogue paintings (seeded sample), each distorted as below. "Catalogue" searches all ${image.ids.length} paintings; "museum" searches only the painting's museum, which is what the app does during a visit. Centre crop keeps the middle ${CROP * 100}% of each side.\n\n| Distortion | Catalogue top-1 | top-5 | + centre crop top-1 | top-5 | Museum top-1 | top-5 | + centre crop top-1 | top-5 |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|\n`;
   for (const name of names) {
     const a = res[name].plain, b = res[name].crop;
     md += `| ${name} | ${pct(a.t1, a.n)} | ${pct(a.t5, a.n)} | ${pct(b.t1, b.n)} | ${pct(b.t5, b.n)} | ${pct(a.mt1, a.n)} | ${pct(a.mt5, a.n)} | ${pct(b.mt1, b.n)} | ${pct(b.mt5, b.n)} |\n`;
   }
-  const cur = mAt(SCAN.notFoundMargin);
-  md += `\n**Not found.** ${pos.length} realistic photos (centre crop on, as in the app) of catalogued paintings vs ${neg.length} of paintings removed from the index. Best top score cut-off: **${best.t}** (balanced accuracy ${(best.acc * 100).toFixed(0)}%). Best top-1 − top-2 margin cut-off: **${bestMargin.t}** (${(bestMargin.acc * 100).toFixed(0)}%). The app uses the margin (${SCAN.notFoundMargin}): ${(cur.tpr * 100).toFixed(0)}% of catalogued paintings are shown as found, ${(cur.tnr * 100).toFixed(0)}% of missing ones are flagged "not a confident match". Paintings look alike to CLIP, so neither signal is decisive; that's why the app always asks you to confirm from the top ${SCAN.show}.\n\n**Latency** (Node, CPU, embed + search, per query): median ${p50.toFixed(0)} ms, p95 ${p95.toFixed(0)} ms. In the app the embedding runs in the browser (WebAssembly), and the Scan page shows the measured time.\n\n**Not tried:** rectangle detection and local-feature re-ranking (ORB/SIFT). The spec makes both conditional on measured gains; the table shows where the remaining errors are, so they're the next experiments if real photos warrant it.\n`;
+  md += `\n**Not found.** ${poss.length} realistic photos (centre crop on, as in the app) of catalogued paintings vs ${negs.length} of paintings that aren't in the index (${neg.length} synthetic + ${negs.length - neg.length} real). Rule: a match counts as found if its catalogue-wide score ≥ S or it leads the runner-up by ≥ M. Best balanced accuracy: score alone ${(scoreOnly * 100).toFixed(0)}%, gap alone ${(gapOnly * 100).toFixed(0)}%, both: **${(best.acc * 100).toFixed(0)}%** at S = ${best.S}, M = ${best.M}. The app uses S = ${SCAN.foundScore}, M = ${SCAN.foundGap}: ${(cur.tpr * 100).toFixed(0)}% of catalogued paintings are shown as found, ${(cur.tnr * 100).toFixed(0)}% of missing ones are flagged "not a confident match". Paintings look alike to CLIP, so this stays imperfect; the app always asks you to confirm from the top ${SCAN.show}.\n\n**Latency** (Node, CPU, embed + search, per query): median ${p50.toFixed(0)} ms, p95 ${p95.toFixed(0)} ms. In the app the embedding runs in the browser (WebAssembly), and the Scan page shows the measured time.\n\n**Not tried:** rectangle detection and local-feature re-ranking (ORB/SIFT). The spec makes both conditional on measured gains; the table shows where the remaining errors are, so they're the next experiments if real photos warrant it.\n`;
   md += `\n### Real photos\n\n`;
   if (real.length) {
     const inCat = real.filter((r) => r.id);
     md += `${inCat.length} photos of catalogued paintings: top-1 **${pct(inCat.filter((r) => r.t1).length, inCat.length)}**, top-5 **${pct(inCat.filter((r) => r.t5).length, inCat.length)}** (centre crop on).\n\n| Photo | Top-1 correct | In top 5 | Best similarity | Margin | App says |\n|---|---|---|---:|---:|---|\n`;
-    for (const r of real) md += `| ${r.file}${r.id ? "" : " (not in catalogue)"} | ${r.id ? (r.t1 ? "yes" : "no") : "–"} | ${r.id ? (r.t5 ? "yes" : "no") : "–"} | ${r.top.toFixed(3)} | ${r.gap.toFixed(3)} | ${r.gap < SCAN.notFoundMargin ? "not a confident match" : "found"} |\n`;
+    for (const r of real) md += `| ${r.file}${r.id ? "" : " (not in catalogue)"} | ${r.id ? (r.t1 ? "yes" : "no") : "–"} | ${r.id ? (r.t5 ? "yes" : "no") : "–"} | ${r.top.toFixed(3)} | ${r.gap.toFixed(3)} | ${r.top >= SCAN.foundScore || r.gap >= SCAN.foundGap ? "found" : "not a confident match"} |\n`;
   } else md += `**Pending: needs real photos.** Put photos of catalogue paintings in \`eval/photos/<Wikidata id>.jpg\` and re-run.\n`;
   writeEvalSection("scan", md);
   console.log(md);

@@ -92,9 +92,9 @@ Model Xenova/clip-vit-base-patch32 (q8-v1), exact cosine search over 9153 catalo
 | frame + wall | 67% | 87% | 93% | 98% | 90% | 99% | 100% | 100% |
 | realistic (frame, wall, tilt, dim, glare) | 52% | 73% | 85% | 96% | 88% | 97% | 97% | 99% |
 
-**Not found.** 150 realistic photos (centre crop on, as in the app) of catalogued paintings vs 50 of paintings removed from the index. Best top score cut-off: **0.82** (balanced accuracy 71%). Best top-1 − top-2 margin cut-off: **0.016** (80%). The app uses the margin (0.016): 77% of catalogued paintings are shown as found, 84% of missing ones are flagged "not a confident match". Paintings look alike to CLIP, so neither signal is decisive; that's why the app always asks you to confirm from the top 5.
+**Not found.** 150 realistic photos (centre crop on, as in the app) of catalogued paintings vs 52 of paintings that aren't in the index (50 synthetic + 2 real). Rule: a match counts as found if its catalogue-wide score ≥ S or it leads the runner-up by ≥ M. Best balanced accuracy: score alone 72%, gap alone 81%, both: **83%** at S = 0.86, M = 0.016. The app uses S = 0.9, M = 0.04: 49% of catalogued paintings are shown as found, 94% of missing ones are flagged "not a confident match". Paintings look alike to CLIP, so this stays imperfect; the app always asks you to confirm from the top 5.
 
-**Latency** (Node, CPU, embed + search, per query): median 19 ms, p95 24 ms. In the app the embedding runs in the browser (WebAssembly), and the Scan page shows the measured time.
+**Latency** (Node, CPU, embed + search, per query): median 19 ms, p95 23 ms. In the app the embedding runs in the browser (WebAssembly), and the Scan page shows the measured time.
 
 **Not tried:** rectangle detection and local-feature re-ranking (ORB/SIFT). The spec makes both conditional on measured gains; the table shows where the remaining errors are, so they're the next experiments if real photos warrant it.
 
@@ -104,5 +104,6 @@ Model Xenova/clip-vit-base-patch32 (q8-v1), exact cosine search over 9153 catalo
 
 | Photo | Top-1 correct | In top 5 | Best similarity | Margin | App says |
 |---|---|---|---:|---:|---|
+| picasso-girl-with-a-mandolin-upload.jpg (not in catalogue) | – | – | 0.799 | 0.003 | not a confident match |
 | picasso-girl-with-a-mandolin.jpg (not in catalogue) | – | – | 0.790 | 0.012 | not a confident match |
 <!-- scan:end -->
