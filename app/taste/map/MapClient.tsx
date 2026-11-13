@@ -31,14 +31,14 @@ export function MapClient({ data }: { data: Data }) {
   const rankedBy = useMemo(() => new Map(ranked.map((r) => [r.id, r])), [ranked]);
   const rankedIdx = useMemo(() => points.id.map((id, i) => (rankedBy.has(id) ? i : -1)).filter((i) => i >= 0), [points.id, rankedBy]);
   const unexploredSet = useMemo(() => new Set(unexplored.map((u) => u.cluster)), [unexplored]);
-  // Ring radius per unexplored cluster: 75th-percentile distance of its points from the label point.
+  // Ring radius per unexplored cluster: median distance of its points from the label point, capped.
   const rings = useMemo(
     () =>
       unexplored.map((u) => {
         const d: number[] = [];
         for (let i = 0; i < n; i++) if (points.cluster[i] === u.cluster) d.push(Math.hypot(points.x[i] - u.x, points.y[i] - u.y));
         d.sort((a, b) => a - b);
-        return { ...u, r: d[Math.floor(d.length * 0.75)] ?? 0.05 };
+        return { ...u, r: Math.min(0.09, d[Math.floor(d.length * 0.5)] ?? 0.05) };
       }),
     [unexplored, n, points],
   );
@@ -102,19 +102,6 @@ export function MapClient({ data }: { data: Data }) {
     }
     ctx.setLineDash([]);
 
-    // Cluster labels.
-    ctx.font = "600 12px Inter, system-ui, sans-serif";
-    ctx.textAlign = "center";
-    for (const cl of clusters) {
-      const [x, y] = toScreen(cl.x, cl.y);
-      const label = cl.label.length > 34 ? cl.label.slice(0, 33) + "…" : cl.label;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = v("--wall");
-      ctx.strokeText(label, x, y - 10);
-      ctx.fillStyle = unexploredSet.has(cl.cluster) ? v("--accent") : v("--ink");
-      ctx.fillText(label, x, y - 10);
-    }
-
     // Your rankings: bigger = ranked higher; colour = tier.
     const order = [...rankedIdx].sort((a, b) => rankedBy.get(points.id[a])!.score - rankedBy.get(points.id[b])!.score);
     for (const i of order) {
@@ -129,6 +116,31 @@ export function MapClient({ data }: { data: Data }) {
       ctx.strokeStyle = v("--wall");
       ctx.stroke();
     }
+
+
+    // Cluster labels, drawn last so dots never cover them. Unexplored and bigger clusters
+    // get placed first; a label that would overlap one already placed is skipped (zoom to see it).
+    ctx.font = "600 12px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    const byPriority = [...clusters].sort((a, b) => Number(unexploredSet.has(b.cluster)) - Number(unexploredSet.has(a.cluster)) || b.size - a.size);
+    for (const cl of byPriority) {
+      const [cx, y] = toScreen(cl.x, cl.y);
+      const label = cl.label.length > 34 ? cl.label.slice(0, 33) + "…" : cl.label;
+      const w = ctx.measureText(label).width;
+      // Keep the whole label on the canvas (narrow phone screens).
+      const x = Math.min(Math.max(cx, w / 2 + 6), size.w - w / 2 - 6);
+      const box = { x0: x - w / 2 - 4, y0: y - 24, x1: x + w / 2 + 4, y1: y - 4 };
+      if (box.x1 < 0 || box.x0 > size.w || box.y1 < 0 || box.y0 > size.h) continue;
+      if (placed.some((p) => box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0)) continue;
+      placed.push(box);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = v("--surface");
+      ctx.strokeText(label, x, y - 10);
+      ctx.fillStyle = unexploredSet.has(cl.cluster) ? v("--accent") : v("--ink");
+      ctx.fillText(label, x, y - 10);
+    }
+
     if (hover) {
       const [x, y] = toScreen(points.x[hover.i], points.y[hover.i]);
       ctx.beginPath();

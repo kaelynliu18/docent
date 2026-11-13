@@ -56,7 +56,10 @@ In a control where taste isn't visual at all, the hybrid ties popularity for new
 `pnpm taste-map` runs seeded UMAP over all 9,153 image embeddings (about 7 s), spherical k-means into 14 clusters, and labels each cluster from the most common movement, genre and century of its members (e.g. *Dutch Golden Age painting, 17th century*, *Expressionism, 20th century*). The coordinates are stored, so `/taste/map` just draws them on a canvas:
 - the whole catalogue as faint dots, your rankings sized by score and coloured by tier;
 - hover for title, artist and rank; click to open the painting; pan, zoom and pinch;
+- loads in 0.6 s at desktop and phone width;
 - dashed rings and links for **unexplored regions**: clusters holding ≥ 3% of the catalogue where you've ranked nothing, each linking to recommendations from that region.
+
+<img src="screenshots/map-desktop.png" width="640" alt="Taste map: the catalogue as faint dots, the demo user's rankings coloured by tier, cluster labels and dashed rings around unexplored regions"> <img src="screenshots/map-phone.png" width="180" alt="Taste map on a phone">
 
 ## Photo recognition
 
@@ -68,6 +71,10 @@ The photo is embedded **in the browser** with the same CLIP model, and only the 
 - It hurts already-tight or blurry shots (blur: 95% → 66%), so a rectangle detector is the obvious next step.
 - **Speed:** 19 ms per query (embed + search) on CPU.
 - Local-feature re-ranking wasn't attempted.
+
+<img src="screenshots/scan-desktop.png" width="640" alt="Scan page: a tilted, framed photo of The Starry Night matched first at 94%, ahead of other Van Goghs at 77–78%">
+
+In the browser (headless Chromium), the first scan took 5.9 s including the model download and the next 0.2 s; the framed, tilted Starry Night photo above came back top-1 at 94%, with the runner-up at 78%.
 
 **"Not found" is the weak spot.** CLIP finds most paintings fairly similar to each other, so a high top score doesn't mean "it's in the catalogue" (71% balanced accuracy at best). Whether the best match stands clearly ahead of the runner-up separates the cases better (80%), so the app flags "not a confident match" when that gap is under 0.016. It still shows the closest five, and offers text search or adding the painting by hand.
 
