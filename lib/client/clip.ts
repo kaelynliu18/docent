@@ -1,6 +1,6 @@
 "use client";
 
-import { EMBEDDING } from "@/lib/algo/config";
+import { EMBEDDING, SCAN } from "@/lib/algo/config";
 
 /**
  * CLIP image embeddings in the browser (transformers.js, WebAssembly), with the
@@ -63,7 +63,7 @@ async function prepare(file: Blob, crop: number): Promise<Blob> {
 
 /** Photo → normalised 512-d CLIP embedding. */
 export async function embedPhoto(file: Blob, opts: { crop?: number; onProgress?: (f: number) => void } = {}): Promise<number[]> {
-  const [{ proc, model, RawImage }, blob] = await Promise.all([load(opts.onProgress), prepare(file, opts.crop ?? 1)]);
+  const [{ proc, model, RawImage }, blob] = await Promise.all([load(opts.onProgress), prepare(file, opts.crop ?? SCAN.crop)]);
   const out = await model(await proc(await RawImage.fromBlob(blob)));
   const v = Array.from(out.image_embeds.data);
   const n = Math.hypot(...v) || 1;

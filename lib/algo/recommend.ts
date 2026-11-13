@@ -10,12 +10,13 @@ import { dot, mmr, scoreAll, tasteVector, vectorOf, type VectorIndex } from "./v
  *
  * 1. Taste vector: weighted mean of the embeddings of ranked paintings,
  *    weight (score − 5)/5 (tasteVector in vectors.ts).
- * 2. Cold users (≤ RECS.coldMax rankings): relevance = cosine(taste, painting).
+ * 2. Cold users (≤ RECS.coldMax rankings): relevance = z(cosine(taste, painting)).
  * 3. Warm users: relevance = (1 − β)·z(cosine) + β·z(warm), where `warm` is the
  *    trait model's predicted score (artist, movement, genre, century, colour,
  *    mood, personal weights), already blended with collaborative filtering by
  *    the caller when enough peers exist. z = z-score over the candidates, so
  *    the two signals are on one scale; β = RECS.embedBlend.
+ *    Both add a popularity prior γ·z(fame) (γ = RECS.popularityCold / popularityWarm).
  * 4. Diversity: MMR over the top RECS.candidates with λ = RECS.mmrLambda.
  * 5. Reason: the ranked painting that pulled the recommendation up most
  *    (largest weight × similarity) → "Looks like your #2, Water Lilies".
@@ -65,13 +66,19 @@ export function recommend(input: RecommendInput): Recommendation[] {
   const all = scoreAll(index, taste);
   const cands = input.candidates.filter((id) => index.pos.has(id));
   const cos = cands.map((id) => all[index.pos.get(id)!]);
-  let relevance = cos;
-  if (ranked.length > o.coldMax && input.warm) {
+  const isWarm = ranked.length > o.coldMax && !!input.warm;
+  let relevance = zScores(cos);
+  if (isWarm) {
     const warm = cands.map((id) => input.warm!(id));
     const mean = warm.filter((x): x is number => x != null).reduce((s, x, _, a) => s + x / a.length, 0);
-    const zc = zScores(cos);
     const zw = zScores(warm.map((x) => x ?? mean));
-    relevance = zc.map((c, i) => (1 - o.embedBlend) * c + o.embedBlend * zw[i]);
+    relevance = relevance.map((c, i) => (1 - o.embedBlend) * c + o.embedBlend * zw[i]);
+  }
+  // Popularity prior: famous paintings are seen (and loved) more, which matters most with little data.
+  const gamma = isWarm ? o.popularityWarm : o.popularityCold;
+  if (gamma > 0 && input.popularity) {
+    const zp = zScores(cands.map((id) => input.popularity!(id)));
+    relevance = relevance.map((r, i) => r + gamma * zp[i]);
   }
 
   const top = cands

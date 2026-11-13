@@ -3,7 +3,8 @@ import { buildTaste } from "./taste";
 import { predictScore } from "./predict";
 import { scoreAt } from "./scoring";
 import { buildCfIndex, cfPredict, blendWithCf, type Ratings } from "./cf";
-import { dot, normalize, type VectorIndex } from "./vectors";
+import { dot, normalize, tasteVector, topK, type VectorIndex } from "./vectors";
+import { RECS } from "./config";
 import { gaussian, mulberry32 } from "./evaluate";
 import { TIERS, type RankedForTaste, type Tier } from "./types";
 
@@ -37,7 +38,7 @@ export function evaluateRecommenders(
   items: EvalPainting[],
   image: VectorIndex,
   hybrid: VectorIndex,
-  opts: { users: number; seen: number; train: number; holdout?: number; k?: number; clusters?: number; truth: Truth; seed?: number; methods?: Method[] },
+  opts: { users: number; seen: number; train: number; holdout?: number; k?: number; clusters?: number; truth: Truth; seed?: number; methods?: Method[]; recOpts?: Partial<typeof RECS> },
 ) {
   const { users, seen, train, holdout = 5, k = 10, clusters = 8, truth, seed = 11 } = opts;
   const methods = opts.methods ?? (["random", "popularity", "traits", "content", "hybrid", "hybrid (no MMR)"] as Method[]);
@@ -148,16 +149,27 @@ export function evaluateRecommenders(
       } else if (m === "popularity") recs = [...candidates].sort((a, b) => byId.get(b)!.fame - byId.get(a)!.fame).slice(0, k);
       else if (m === "traits") recs = candidates.map((id) => ({ id, s: trait(id) })).sort((a, b) => b.s - a.s).slice(0, k).map((x) => x.id);
       else if (m === "content")
-        recs = recommend({ ranked: rankedRefs, candidates, index: hybrid, opts: { limit: k, coldMax: Infinity, mmrLambda: 1 } }).map((r) => r.id);
-      else
+        recs = recommend({ ranked: rankedRefs, candidates, index: hybrid, opts: { limit: k, coldMax: Infinity, mmrLambda: 1, popularityCold: 0 } }).map((r) => r.id);
+      else {
+        // Mirror getRecommendations: warm users get the trait model on the visually closest
+        // shortlist and collaborative filtering on its top 60 (CF on everything is too slow).
+        let shortlist = candidates;
+        let warmMap: Map<string, number> | undefined;
+        if (rankedRefs.length > RECS.coldMax) {
+          const t = tasteVector(hybrid, rankedRefs);
+          const allowed = new Set(candidates);
+          if (t) shortlist = topK(hybrid, t, RECS.candidates * 2, { keep: (id) => allowed.has(id) }).map((x) => x.id);
+          warmMap = new Map(shortlist.map((id, i) => [id, i < 60 ? warm(id) : trait(id)]));
+        }
         recs = recommend({
           ranked: rankedRefs,
-          candidates,
+          candidates: shortlist,
           index: hybrid,
-          warm,
+          warm: warmMap && ((id) => warmMap!.get(id) ?? null),
           popularity: (id) => byId.get(id)!.fame,
-          opts: { limit: k, mmrLambda: m === "hybrid" ? undefined : 1 },
+          opts: { ...opts.recOpts, limit: k, ...(m === "hybrid" ? {} : { mmrLambda: 1 }) },
         }).map((r) => r.id);
+      }
       const r = hitAndNdcg(recs, p.hidden, k);
       totals[m].hit += r.hit;
       totals[m].ndcg += r.ndcg;

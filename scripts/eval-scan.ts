@@ -29,7 +29,7 @@ import { writeEvalSection } from "@/lib/evalReport";
 
 const N = Number(process.env.SCAN_EVAL_N ?? 150);
 const NEG = Math.round(N / 3);
-const CROP = 0.8;
+const CROP = SCAN.crop;
 
 function toImg(bytes: Uint8Array): Img | null {
   if (bytes[0] === 0xff && bytes[1] === 0xd8) {
@@ -72,7 +72,8 @@ async function main() {
   const res: Record<string, Record<"plain" | "crop", Cell>> = Object.fromEntries(
     names.map((n) => [n, { plain: { t1: 0, t5: 0, mt1: 0, mt5: 0, n: 0 }, crop: { t1: 0, t5: 0, mt1: 0, mt5: 0, n: 0 } }]),
   );
-  const pos: number[] = [], neg: number[] = [];
+  // Not-found signals, measured the way the app runs (centre crop on): best score and top-1 − top-2 margin.
+  const pos: number[] = [], neg: number[] = [], posM: number[] = [], negM: number[] = [];
   const timings: number[] = [];
   let done = 0;
   for (const w of sampleSet) {
@@ -92,7 +93,10 @@ async function main() {
         const hits = topK(image, v, 5, { keep });
         timings.push(performance.now() - t0);
         if (isNeg) {
-          if (variant === "plain") neg.push(hits[0]?.score ?? 0);
+          if (variant === "crop") {
+            neg.push(hits[0]?.score ?? 0);
+            negM.push((hits[0]?.score ?? 0) - (hits[1]?.score ?? 0));
+          }
           continue;
         }
         const ids = hits.map((h) => h.id);
@@ -104,27 +108,35 @@ async function main() {
         if (ids.includes(w.id)) c.t5++;
         if (local[0] === w.id) c.mt1++;
         if (local.includes(w.id)) c.mt5++;
-        if (variant === "plain" && name === "realistic (frame, wall, tilt, dim, glare)") pos.push(hits.find((h) => h.id === w.id)?.score ?? hits[0]?.score ?? 0);
+        if (variant === "crop" && name === "realistic (frame, wall, tilt, dim, glare)") {
+          pos.push(hits[0]?.score ?? 0);
+          posM.push((hits[0]?.score ?? 0) - (hits[1]?.score ?? 0));
+        }
       }
     }
     if (++done % 25 === 0) console.log(`${done}/${sampleSet.length}`);
   }
 
-  // Threshold: best balanced accuracy between "in catalogue" (true match score) and "not in catalogue" (best score).
-  let best = { t: SCAN.notFoundBelow, acc: 0 };
-  for (let t = 0.5; t <= 0.95; t += 0.01) {
-    const tpr = pos.filter((x) => x >= t).length / (pos.length || 1);
-    const tnr = neg.filter((x) => x < t).length / (neg.length || 1);
-    if ((tpr + tnr) / 2 > best.acc) best = { t: Math.round(t * 100) / 100, acc: (tpr + tnr) / 2 };
-  }
-  const tAt = (t: number) => ({ tpr: pos.filter((x) => x >= t).length / (pos.length || 1), tnr: neg.filter((x) => x < t).length / (neg.length || 1) });
+  // Threshold: best balanced accuracy between "in catalogue" and "not in catalogue", for each signal.
+  const bestCut = (p: number[], n: number[], lo: number, hi: number, step: number) => {
+    let b = { t: lo, acc: 0 };
+    for (let t = lo; t <= hi; t += step) {
+      const tpr = p.filter((x) => x >= t).length / (p.length || 1);
+      const tnr = n.filter((x) => x < t).length / (n.length || 1);
+      if ((tpr + tnr) / 2 > b.acc) b = { t: Math.round(t * 1000) / 1000, acc: (tpr + tnr) / 2 };
+    }
+    return b;
+  };
+  const best = bestCut(pos, neg, 0.5, 0.95, 0.01);
+  const bestMargin = bestCut(posM, negM, 0, 0.2, 0.002);
+  const mAt = (t: number) => ({ tpr: posM.filter((x) => x >= t).length / (posM.length || 1), tnr: negM.filter((x) => x < t).length / (negM.length || 1) });
   timings.sort((a, b) => a - b);
   const p50 = timings[Math.floor(timings.length / 2)] ?? 0;
   const p95 = timings[Math.floor(timings.length * 0.95)] ?? 0;
 
   // Real photos.
   const realDir = "eval/photos";
-  const real: { file: string; id: string | null; t1: boolean; t5: boolean; top: number }[] = [];
+  const real: { file: string; id: string | null; t1: boolean; t5: boolean; top: number; gap: number }[] = [];
   if (fs.existsSync(realDir)) {
     const files = [
       ...fs.readdirSync(realDir).filter((f) => /\.(jpe?g)$/i.test(f)).map((f) => ({ f: path.join(realDir, f), id: f.replace(/\..*$/, "") })),
@@ -144,7 +156,7 @@ async function main() {
       const q = centerCrop(img, CROP);
       const v = await embedRgba(q.data, q.width, q.height);
       const hits = topK(image, v, 5);
-      real.push({ file: path.basename(f), id, t1: hits[0]?.id === id, t5: hits.some((h) => h.id === id), top: hits[0]?.score ?? 0 });
+      real.push({ file: path.basename(f), id, t1: hits[0]?.id === id, t5: hits.some((h) => h.id === id), top: hits[0]?.score ?? 0, gap: (hits[0]?.score ?? 0) - (hits[1]?.score ?? 0) });
     }
   }
 
@@ -154,13 +166,13 @@ async function main() {
     const a = res[name].plain, b = res[name].crop;
     md += `| ${name} | ${pct(a.t1, a.n)} | ${pct(a.t5, a.n)} | ${pct(b.t1, b.n)} | ${pct(b.t5, b.n)} | ${pct(a.mt1, a.n)} | ${pct(a.mt5, a.n)} | ${pct(b.mt1, b.n)} | ${pct(b.mt5, b.n)} |\n`;
   }
-  const cur = tAt(SCAN.notFoundBelow);
-  md += `\n**Not found threshold.** ${pos.length} realistic photos of catalogued paintings vs ${neg.length} of paintings removed from the index. Best balanced accuracy at similarity **${best.t}** (${(best.acc * 100).toFixed(0)}%); the app uses ${SCAN.notFoundBelow}: ${(cur.tpr * 100).toFixed(0)}% of real matches pass, ${(cur.tnr * 100).toFixed(0)}% of not-in-catalogue photos are correctly flagged.\n\n**Latency** (Node, CPU, embed + search, per query): median ${p50.toFixed(0)} ms, p95 ${p95.toFixed(0)} ms. In the app the embedding runs in the browser (WebAssembly), and the Scan page shows the measured time.\n\n**Not tried:** rectangle detection and local-feature re-ranking (ORB/SIFT). The spec makes both conditional on measured gains; the table shows where the remaining errors are, so they're the next experiments if real photos warrant it.\n`;
+  const cur = mAt(SCAN.notFoundMargin);
+  md += `\n**Not found.** ${pos.length} realistic photos (centre crop on, as in the app) of catalogued paintings vs ${neg.length} of paintings removed from the index. Best top score cut-off: **${best.t}** (balanced accuracy ${(best.acc * 100).toFixed(0)}%). Best top-1 − top-2 margin cut-off: **${bestMargin.t}** (${(bestMargin.acc * 100).toFixed(0)}%). The app uses the margin (${SCAN.notFoundMargin}): ${(cur.tpr * 100).toFixed(0)}% of catalogued paintings are shown as found, ${(cur.tnr * 100).toFixed(0)}% of missing ones are flagged "not a confident match". Paintings look alike to CLIP, so neither signal is decisive; that's why the app always asks you to confirm from the top ${SCAN.show}.\n\n**Latency** (Node, CPU, embed + search, per query): median ${p50.toFixed(0)} ms, p95 ${p95.toFixed(0)} ms. In the app the embedding runs in the browser (WebAssembly), and the Scan page shows the measured time.\n\n**Not tried:** rectangle detection and local-feature re-ranking (ORB/SIFT). The spec makes both conditional on measured gains; the table shows where the remaining errors are, so they're the next experiments if real photos warrant it.\n`;
   md += `\n### Real photos\n\n`;
   if (real.length) {
     const inCat = real.filter((r) => r.id);
-    md += `${inCat.length} photos of catalogued paintings: top-1 **${pct(inCat.filter((r) => r.t1).length, inCat.length)}**, top-5 **${pct(inCat.filter((r) => r.t5).length, inCat.length)}** (centre crop on).\n\n| Photo | Top-1 correct | In top 5 | Best similarity |\n|---|---|---|---:|\n`;
-    for (const r of real) md += `| ${r.file}${r.id ? "" : " (not in catalogue)"} | ${r.id ? (r.t1 ? "yes" : "no") : "–"} | ${r.id ? (r.t5 ? "yes" : "no") : "–"} | ${r.top.toFixed(3)} |\n`;
+    md += `${inCat.length} photos of catalogued paintings: top-1 **${pct(inCat.filter((r) => r.t1).length, inCat.length)}**, top-5 **${pct(inCat.filter((r) => r.t5).length, inCat.length)}** (centre crop on).\n\n| Photo | Top-1 correct | In top 5 | Best similarity | Margin | App says |\n|---|---|---|---:|---:|---|\n`;
+    for (const r of real) md += `| ${r.file}${r.id ? "" : " (not in catalogue)"} | ${r.id ? (r.t1 ? "yes" : "no") : "–"} | ${r.id ? (r.t5 ? "yes" : "no") : "–"} | ${r.top.toFixed(3)} | ${r.gap.toFixed(3)} | ${r.gap < SCAN.notFoundMargin ? "not a confident match" : "found"} |\n`;
   } else md += `**Pending: needs real photos.** Put photos of catalogue paintings in \`eval/photos/<Wikidata id>.jpg\` and re-run.\n`;
   writeEvalSection("scan", md);
   console.log(md);

@@ -29,6 +29,12 @@ export const RECS = {
   coldMax: 5,
   /** Weight of the embedding score vs the trait (artist/movement/…) score for warm users. */
   embedBlend: 0.5,
+  /**
+   * Popularity prior (z-scored fame) added to relevance: helps most when a user
+   * has ranked little. Separate weights for cold and warm users; tuned with pnpm eval:recs.
+   */
+  popularityCold: 1,
+  popularityWarm: 0.5,
 };
 
 export const MAP = {
@@ -45,8 +51,16 @@ export const MAP = {
 export const SCAN = {
   /** Matches shown for the user to confirm. */
   show: 5,
-  /** Top cosine similarity below this → "not found", fall back to search. Tuned in docs/eval-results.md. */
-  notFoundBelow: 0.62,
+  /** Keep the centre of the photo (cuts wall and frame). Big win on framed photos in pnpm eval:scan. */
+  crop: 0.8,
+  /** The visited museum's best match must reach this similarity, else search the whole catalogue. */
+  museumMin: 0.62,
+  /**
+   * "Not found" when the best match isn't clearly ahead of the runner-up (top-1 − top-2
+   * similarity below this). Separated catalogued vs missing paintings better than the raw
+   * score in pnpm eval:scan (80% vs 71% balanced accuracy).
+   */
+  notFoundMargin: 0.016,
 };
 
 /** Which embedding a precomputed map belongs to (artwork_map.version). */

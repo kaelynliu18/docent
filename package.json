@@ -24,7 +24,8 @@
     "embed": "tsx --tsconfig tsconfig.json scripts/embed.ts",
     "eval:recs": "tsx --tsconfig tsconfig.json scripts/eval-recs.ts",
     "taste-map": "tsx --tsconfig tsconfig.json scripts/taste-map.ts",
-    "eval:scan": "tsx --tsconfig tsconfig.json scripts/eval-scan.ts"
+    "eval:scan": "tsx --tsconfig tsconfig.json scripts/eval-scan.ts",
+    "spot-check": "tsx --tsconfig tsconfig.json scripts/spot-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

@@ -45,14 +45,16 @@ async function main() {
     popularity: "Popularity (fame)",
     traits: "Trait model (artist, movement, genre, century, colour, mood)",
     content: "Content: CLIP taste vector",
-    hybrid: "Hybrid: CLIP + traits + CF, MMR",
+    hybrid: "Hybrid: CLIP + traits + CF + popularity prior, MMR",
     "hybrid (no MMR)": "Hybrid without MMR",
   };
-  let md = `## Recommendations (synthetic users)\n\n**The users are synthetic.** Docent doesn't have enough real users yet. ${items.length} pool paintings (${withEmb} with embeddings). 400 simulated people per row, in 8 taste groups centred on real paintings' CLIP image embeddings; each sees 40 paintings (biased toward famous ones), ranks them, and their top 5 are hidden. Methods recommend from everything they haven't ranked. HR@10 = share of people with at least one hidden favourite in the top 10; NDCG@10 rewards putting them high. The visual taste in the first block is defined in CLIP space, which favours CLIP-based methods by construction; the second block removes it as a control.\n\nCommand: \`pnpm eval:recs\` (model ${EMBEDDING.model} ${EMBEDDING.version}, MMR λ ${RECS.mmrLambda}, blend β ${RECS.embedBlend}).\n`;
+  let md = `## Recommendations (synthetic users)\n\n**The users are synthetic.** Docent doesn't have enough real users yet. ${items.length} pool paintings (${withEmb} with embeddings). 800 simulated people per row, in 8 taste groups centred on real paintings' CLIP image embeddings; each sees 40 paintings (biased toward famous ones), ranks them, and their top 5 are hidden. Methods recommend from everything they haven't ranked. HR@10 = share of people with at least one hidden favourite in the top 10; NDCG@10 rewards putting them high. The visual taste in the first block is defined in CLIP space, which favours CLIP-based methods by construction; the second block removes it as a control.\n\nCommand: \`pnpm eval:recs\` (model ${EMBEDDING.model} ${EMBEDDING.version}, MMR λ ${RECS.mmrLambda}, blend β ${RECS.embedBlend}, popularity prior ${RECS.popularityCold} cold / ${RECS.popularityWarm} warm). The prior weights were picked on these same synthetic users (a grid over 0–2), whose taste includes some popularity by assumption, so treat the hybrid numbers as optimistic until real users exist.\n`;
   for (const [tname, truth] of Object.entries(truths)) {
     md += `\n### ${tname}\n\n| Method | ${scenarios.map((s) => `${s.name} HR@10 | NDCG@10`).join(" | ")} |\n|---|${scenarios.map(() => "---:|---:").join("|")}|\n`;
-    const res = scenarios.map((sc) => evaluateRecommenders(items, image, hybrid, { users: 400, seen: 40, train: sc.train, truth }));
+    const res = scenarios.map((sc) => evaluateRecommenders(items, image, hybrid, { users: 800, seen: 40, train: sc.train, truth }));
     for (const m of order) md += `| ${label[m]} | ${res.map((r) => `${(r[m].hit * 100).toFixed(1)}% | ${r[m].ndcg.toFixed(3)}`).join(" | ")} |\n`;
+    const noPop = scenarios.map((sc) => evaluateRecommenders(items, image, hybrid, { users: 800, seen: 40, train: sc.train, truth, methods: ["hybrid"], recOpts: { popularityCold: 0, popularityWarm: 0 } }));
+    md += `| Hybrid without the popularity prior | ${noPop.map((r) => `${(r.hybrid.hit * 100).toFixed(1)}% | ${r.hybrid.ndcg.toFixed(3)}`).join(" | ")} |\n`;
     console.log(tname, JSON.stringify(res.map((r) => Object.fromEntries(order.map((m) => [m, r[m].hit.toFixed(3)])))));
   }
   writeEvalSection("recs", md);

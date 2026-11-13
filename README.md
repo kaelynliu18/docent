@@ -35,6 +35,22 @@ pnpm eval:algo      # compare predictors on simulated users over the real pool
   fame (Wikipedia pageviews), museums. Takes roughly 20–30 minutes; set `INGEST_USER_AGENT` with a contact.
 - Nightly: `.github/workflows/ingest.yml` (set `DATABASE_URL` and `INGEST_USER_AGENT` secrets) or Vercel Cron → `/api/cron/ingest` with `CRON_SECRET`.
 
+## Visual taste (embeddings, recommendations, taste map, photo scan)
+
+Open CLIP embeddings of every catalogue painting power recommendations (including for brand-new users), an
+interactive taste map (`/taste/map`) and photo-to-painting matching (Identify step and `/scan`). Design, trade-offs
+and results: [docs/visual-taste.md](docs/visual-taste.md); numbers: [docs/eval-results.md](docs/eval-results.md).
+
+```bash
+pnpm embed          # CLIP image + text embeddings for the catalogue (idempotent, resumable; ~1–2 h first time)
+pnpm taste-map      # 2D map + labelled clusters (seconds)
+pnpm eval:recs      # recommender eval on synthetic users → docs/eval-results.md
+pnpm eval:scan      # photo recognition eval (synthetic + eval/photos/*.jpg) → docs/eval-results.md
+pnpm spot-check     # nearest neighbours of famous paintings → docs/eval-results.md
+```
+
+Locally these open the database, so stop `pnpm dev`/`pnpm start` while they run.
+
 ## Install it on a phone
 
 Docent is a Progressive Web App. Open the site on your phone, then:
