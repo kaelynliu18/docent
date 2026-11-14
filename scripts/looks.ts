@@ -27,18 +27,25 @@ async function run(
   save: (id: string, v: ColorStats | string[]) => Promise<void> | void,
   checkpoint: () => void = () => {},
 ) {
-  const client = what === "moods" ? new Anthropic() : null;
-  const thumbs = client ? new Map<string, string>() : await thumbUrls(targets.map((t) => t.imageFile));
-  if (!client) console.log(`thumbnail links for ${thumbs.size}/${targets.length}`);
+  // The SDK backs off on 429/529 (honouring retry-after); 2 retries gave up during a
+  // long rate limit and silently skipped most of a run, so allow many more.
+  const client = what === "moods" ? new Anthropic({ maxRetries: 10 }) : null;
+  // Standard Commons sizes only (cached, not throttled): 120px is enough for colour, 500px for Claude.
+  const thumbs = await thumbUrls(targets.map((t) => t.imageFile), client ? 500 : 120);
+  console.log(`thumbnail links for ${thumbs.size}/${targets.length}`);
   let done = 0, missed = 0;
+  // Say why the first few were skipped, so a systematic failure shows up immediately.
+  const skip = (t: Target, why: string) => {
+    if (++missed <= 5) console.log(`skipped ${t.title}: ${why}`);
+  };
   await pool(targets, what === "moods" ? 4 : 2, async (t) => {
     try {
       const thumb = thumbs.get(t.imageFile);
-      const v = client ? await tagMoods(client, t) : thumb ? await fetchColorStats(thumb) : null;
+      const v = !thumb ? null : client ? await tagMoods(client, { title: t.title, thumbUrl: thumb }) : await fetchColorStats(thumb);
       if (v) await save(t.id, v);
-      else missed++;
+      else skip(t, !thumb ? "no thumbnail link from Commons" : client ? "image download failed or Claude declined" : "image download failed");
     } catch (e) {
-      missed++;
+      skip(t, e instanceof Error ? e.message.slice(0, 200) : String(e));
       if (e instanceof Anthropic.AuthenticationError) throw e;
       if (e instanceof Anthropic.RateLimitError) await new Promise((r) => setTimeout(r, 10_000));
     }
